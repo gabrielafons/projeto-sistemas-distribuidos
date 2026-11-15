@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+option java_package = "bbs";
+option java_outer_classname = "ChatProto";
+option csharp_namespace = "Bbs";
+
+// Formato único de mensagem do projeto.
+// Todas as mensagens trocadas (requisições e respostas) são um Envelope
+// serializado em binário com Protobuf. O campo `type` diz o que a mensagem é.
+
+enum Type {
+  UNKNOWN = 0;
+  LOGIN = 1;           // REQ: cliente -> servidor
+  LIST_CHANNELS = 2;   // REQ: cliente -> servidor
+  CREATE_CHANNEL = 3;  // REQ: cliente -> servidor
+  PUBLISH = 4;         // REQ: cliente -> servidor (pedido de publicação em um canal)
+  PUBLICATION = 5;     // PUB: servidor -> canal (mensagem publicada no tópico)
+  GET_RANK = 6;        // REQ: servidor -> referência (REP traz o rank)
+  LIST_SERVERS = 7;    // REQ: servidor -> referência (REP traz a lista de servidores)
+  HEARTBEAT = 8;       // REQ: servidor -> referência (REP: OK)
+  ELECTION = 9;        // REQ: servidor -> servidor de rank maior (REP: OK)
+  CLOCK = 10;          // REQ: servidor -> coordenador (REP: hora correta)
+  COORDINATOR = 11;    // PUB: novo coordenador, no tópico "servers"
+  REPLICATE = 12;      // PUB: servidor -> servidores, no tópico "replica" (novas entradas)
+  SYNC = 13;           // REQ: servidor -> servidor (REP traz todas as entradas)
+  HISTORY = 14;        // REQ: cliente -> servidor (REP traz as últimas mensagens de um canal)
+}
+
+enum Status {
+  STATUS_UNSET = 0;
+  OK = 1;
+  ERROR = 2;
+}
+
+message ServerInfo {
+  string name = 1;
+  int32 rank = 2;
+  string address = 3;   // endereço ZeroMQ do servidor para falar com outros servidores
+}
+
+// Um evento persistido (login, criação de canal ou mensagem). É a unidade de replicação.
+message LogEntry {
+  string id = 1;        // identificador único: a mesma entrada nunca é gravada duas vezes
+  string origin = 2;    // servidor que recebeu a escrita do cliente
+  string kind = 3;      // "login", "channel" ou "message"
+  double timestamp = 4; // instante do evento (relógio físico do servidor de origem)
+  int64 clock = 5;      // relógio lógico do servidor de origem no evento
+  string user = 6;
+  string channel = 7;
+  string text = 8;
+}
+
+message Envelope {
+  Type type = 1;
+  string sender = 2;           // nome de quem enviou a mensagem
+  double timestamp = 3;        // instante do envio (segundos desde 1970)
+  Status status = 4;           // usado nas respostas
+  string error = 5;            // descrição do erro quando status = ERROR
+  string user = 6;             // nome do usuário (login)
+  string channel = 7;          // nome do canal (criação)
+  repeated string channels = 8; // lista de canais (resposta da listagem)
+  string text = 9;             // texto da mensagem publicada
+  int64 clock = 10;            // relógio lógico (Lamport) de quem envia
+  int32 rank = 11;             // rank do servidor (resposta do GET_RANK)
+  repeated ServerInfo servers = 12; // lista de servidores (resposta do LIST_SERVERS)
+  double time = 13;            // hora correta informada pelo coordenador (CLOCK)
+  string coordinator = 14;     // nome do servidor eleito coordenador
+  string address = 15;         // endereço do servidor (cadastro na referência)
+  repeated LogEntry entries = 16; // entradas replicadas (REPLICATE/SYNC) ou histórico (HISTORY)
+  int32 total = 17;            // total de mensagens do canal (resposta do HISTORY)
+}

@@ -1,0 +1,8 @@
+rust/target
+java/target
+csharp/bin
+csharp/obj
+data
+**/__pycache__
+*.zip
+.git

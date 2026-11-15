@@ -1,0 +1,83 @@
+COMO RODAR
+
+Abra o Docker Desktop e a pasta projeto_sistemas_final no VS Code.
+Em cada terminal novo, use a pasta onde esta docker-compose.yaml.
+Para dar nome ao terminal: botao direito no nome dele > Rename.
+Rode cada comando abaixo separadamente e espere terminar.
+
+1. PROFESSOR - RECEBE
+
+Va em Terminal > New Terminal. Renomeie para Professor - Recebe.
+Rode:
+
+docker compose up --build -d
+
+docker compose stop client-python-1 client-python-2 client-java-1 client-java-2 client-csharp-1 client-csharp-2 client-cpp-1 client-cpp-2
+
+docker compose run --rm --no-deps -v "${PWD}/demonstracao.py:/app/demonstracao.py:ro" broker python -u demonstracao.py receber --nome professor --todos
+
+Espere aparecer PRONTO PARA RECEBER. Deixe esse terminal aberto.
+
+2. GABRIEL - ENVIA
+
+Va em Terminal > New Terminal. Renomeie para Gabriel - Envia.
+Rode:
+
+docker compose run --rm --no-deps -v "${PWD}/demonstracao.py:/app/demonstracao.py:ro" broker python -u demonstracao.py enviar --nome gabriel
+
+Quando aparecer gabriel>, escreva sua mensagem e aperte Enter.
+Clique em Professor - Recebe para ver a mensagem chegando.
+No Gabriel, digite /historico para consultar as mensagens.
+
+3. PYTHON
+
+Va em Terminal > New Terminal. Renomeie para Python.
+Rode:
+
+docker compose logs --tail 10 -f homem-de-ferro-python-1 maquina-de-combate-python-2
+
+4. C#
+
+Va em Terminal > New Terminal. Renomeie para C#.
+Rode:
+
+docker compose logs --tail 10 -f viuva-negra-csharp-1 gaviao-arqueiro-csharp-2
+
+5. JAVA
+
+Va em Terminal > New Terminal. Renomeie para Java.
+Rode:
+
+docker compose logs --tail 10 -f capitao-america-java-1 soldado-invernal-java-2
+
+6. C++
+
+Va em Terminal > New Terminal. Renomeie para C++.
+Rode:
+
+docker compose logs --tail 10 -f visao-cpp-1 feiticeira-escarlate-cpp-2
+
+7. RELOGIO
+
+Va em Terminal > New Terminal. Renomeie para Relogio.
+Ligue os bots para gerar mensagens automaticamente:
+
+docker compose start client-python-1 client-python-2 client-java-1 client-java-2 client-csharp-1 client-csharp-2 client-cpp-1 client-cpp-2
+
+Depois acompanhe os registros de relogio, heartbeat e coordenador:
+
+docker compose logs --tail 10 -f | Select-String -Pattern 'CLOCK|HEARTBEAT|coordenador|corre'
+
+O Professor tambem vai receber mensagens automaticas dos herois.
+Para sair desse acompanhamento, pressione Ctrl+C. Os bots continuam ligados.
+Para parar os bots e voltar a enviar somente pelo Gabriel, rode:
+
+docker compose stop client-python-1 client-python-2 client-java-1 client-java-2 client-csharp-1 client-csharp-2 client-cpp-1 client-cpp-2
+
+PARA FECHAR TUDO
+
+No Gabriel, digite /sair.
+No Professor e nos terminais de logs, pressione Ctrl+C.
+Em um terminal livre, rode:
+
+docker compose down --remove-orphans
