@@ -4,14 +4,14 @@ import time
 import zmq
 
 import chat_pb2 as pb
-from common import Messenger, codificar
+from common import Mensageiro, codificar
 
 PORTA = os.environ.get("REF_PORT", "5559")
 TIMEOUT = float(os.environ.get("HEARTBEAT_TIMEOUT", "30"))
 
 
 def main():
-    mensageiro = Messenger("reference")
+    mensageiro = Mensageiro("reference")
     ranks = {}
     enderecos = {}
     ativos = {}
@@ -40,7 +40,7 @@ def main():
             return mensageiro.montar(envelope.tipo, status=pb.OK, rank=ranks[nome])
 
         if envelope.tipo == pb.LISTAR_SERVIDORES:
-            lista = [pb.ServerInfo(nome=n, rank=ranks[n], endereco=enderecos[n]) for n in sorted(ativos, key=ranks.get)]
+            lista = [pb.InfoServidor(nome=n, rank=ranks[n], endereco=enderecos[n]) for n in sorted(ativos, key=ranks.get)]
             return mensageiro.montar(envelope.tipo, status=pb.OK, servidores=lista)
 
         if envelope.tipo == pb.BATIMENTO:

@@ -38,12 +38,12 @@ namespace Bbs
         }
     }
 
-    internal sealed class PhysicalClock
+    internal sealed class RelogioFisico
     {
         private readonly double desvio;
         private double correcao = 0.0;
 
-        public PhysicalClock(double desvio)
+        public RelogioFisico(double desvio)
         {
             this.desvio = desvio;
         }
@@ -66,19 +66,19 @@ namespace Bbs
         }
     }
 
-    internal sealed class Messenger
+    internal sealed class Mensageiro
     {
         public string Nome;
         public long Relogio = 0;
-        private readonly PhysicalClock fisico;
+        private readonly RelogioFisico fisico;
 
-        public Messenger(string nome, PhysicalClock fisico)
+        public Mensageiro(string nome, RelogioFisico fisico)
         {
             Nome = nome;
             this.fisico = fisico;
         }
 
-        public Envelope Montar(Type tipo)
+        public Envelope Montar(Tipo tipo)
         {
             Relogio++;
             return new Envelope

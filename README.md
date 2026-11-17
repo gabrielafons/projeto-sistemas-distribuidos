@@ -180,7 +180,7 @@ Clientes, servidores e o serviço de referência têm um contador (Lamport) que 
 1. **antes de enviar** qualquer mensagem o contador é incrementado e o valor vai no campo `relogio`;
 2. **ao receber**, o contador passa a ser `max(valor local, valor da mensagem)`.
 
-Isso está em `Messenger.montar()` / `Messenger.ler()` (`python/common.py`, `java/.../Messenger.java`, `csharp/Util.cs` e `cpp/Common.hpp`), então vale para todas as mensagens. O valor do contador aparece nos logs como `[nome|L=...]`. O relógio lógico também é gravado em cada evento persistido (campo `relogio`).
+Isso está em `Mensageiro.montar()` / `Mensageiro.ler()` (`python/common.py`, `java/.../Mensageiro.java`, `csharp/Util.cs` e `cpp/Common.hpp`), então vale para todas as mensagens. O valor do contador aparece nos logs como `[nome|L=...]`. O relógio lógico também é gravado em cada evento persistido (campo `relogio`).
 
 ### Serviço de referência e heartbeat (Partes 3 e 4)
 
@@ -270,9 +270,9 @@ Cada arquivo `data/<servidor>/<servidor>.jsonl` passa a conter **todas** as entr
 ```
 proto/chat.proto        formato das mensagens (Protobuf)
 python/                 broker.py, proxy.py, reference.py, server.py, client.py, common.py, store.py (+ chat_pb2.py gerado)
-java/                   src/main/java/bbs/Server.java, Client.java, Messenger.java, PhysicalClock.java, Store.java, Util.java, pom.xml
-csharp/                 Server.cs, Client.cs, Util.cs (relógios e Messenger), Store.cs, Program.cs, Bbs.csproj
-cpp/                    Server.cpp, Client.cpp, Common.hpp, Store.hpp
+java/                   src/main/java/bbs/Servidor.java, Cliente.java, Mensageiro.java, RelogioFisico.java, Armazenamento.java, Util.java, pom.xml
+csharp/                 Servidor.cs, Cliente.cs, Util.cs (relógios e Mensageiro), Armazenamento.cs, Program.cs, Bbs.csproj
+cpp/                    Servidor.cpp, Cliente.cpp, Common.hpp, Armazenamento.hpp
 Dockerfile.python, Dockerfile.java, Dockerfile.csharp, Dockerfile.cpp, docker-compose.yaml
 ```
 

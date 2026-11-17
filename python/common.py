@@ -16,7 +16,7 @@ def decodificar(dados):
 
 
 def entrada_para_proto(e):
-    return pb.LogEntry(id=e["id"], origem=e["origin"], tipo=e["kind"], instante=e["ts"],
+    return pb.EntradaLog(id=e["id"], origem=e["origin"], tipo=e["kind"], instante=e["ts"],
                          relogio=e.get("clock", 0), usuario=e["user"], canal=e["channel"], texto=e["text"])
 
 
@@ -30,7 +30,7 @@ def hora():
     return time.strftime("%H:%M:%S", time.localtime(t)) + f".{int((t % 1) * 1000):03d}"
 
 
-class PhysicalClock:
+class RelogioFisico:
     def __init__(self, desvio=0.0):
         self.desvio = desvio
         self.correcao = 0.0
@@ -47,10 +47,10 @@ class PhysicalClock:
         return self.correcao
 
 
-class Messenger:
+class Mensageiro:
     def __init__(self, nome, fisico=None):
         self.nome = nome
-        self.fisico = fisico or PhysicalClock()
+        self.fisico = fisico or RelogioFisico()
         self.relogio = 0
 
     def montar(self, tipo, **campos):

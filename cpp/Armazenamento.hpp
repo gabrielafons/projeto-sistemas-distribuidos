@@ -15,7 +15,7 @@
 
 #include "chat.pb.h"
 
-struct Entry {
+struct Entrada {
     std::string id;
     std::string origem;
     std::string tipo;
@@ -25,8 +25,8 @@ struct Entry {
     std::string canal;
     std::string texto;
 
-    LogEntry paraProto() const {
-        LogEntry le;
+    EntradaLog paraProto() const {
+        EntradaLog le;
         le.set_id(id);
         le.set_origem(origem);
         le.set_tipo(tipo);
@@ -38,8 +38,8 @@ struct Entry {
         return le;
     }
 
-    static Entry deProto(const LogEntry& le) {
-        Entry e;
+    static Entrada deProto(const EntradaLog& le) {
+        Entrada e;
         e.id = le.id();
         e.origem = le.origem();
         e.tipo = le.tipo();
@@ -57,8 +57,8 @@ struct Entry {
         return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     }
 
-    static Entry deJson(const nlohmann::json& j) {
-        Entry e;
+    static Entrada deJson(const nlohmann::json& j) {
+        Entrada e;
         e.id = j.value("id", "");
         e.origem = j.value("origin", "");
         e.tipo = j.value("kind", "");
@@ -71,9 +71,9 @@ struct Entry {
     }
 };
 
-class Store {
+class Armazenamento {
 public:
-    Store(const std::string& pastaDados, const std::string& nomeServidor) : nomeServidor_(nomeServidor) {
+    Armazenamento(const std::string& pastaDados, const std::string& nomeServidor) : nomeServidor_(nomeServidor) {
         std::filesystem::create_directories(pastaDados);
         caminho_ = pastaDados + "/" + nomeServidor + ".jsonl";
         std::ifstream entrada(caminho_);
@@ -84,28 +84,28 @@ public:
             }
             auto j = nlohmann::json::parse(linha, nullptr, false);
             if (!j.is_discarded()) {
-                aplicar(Entry::deJson(j));
+                aplicar(Entrada::deJson(j));
             }
         }
         fd_ = ::open(caminho_.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
     }
 
-    ~Store() {
+    ~Armazenamento() {
         if (fd_ >= 0) {
             ::close(fd_);
         }
     }
 
-    Store(const Store&) = delete;
-    Store& operator=(const Store&) = delete;
+    Armazenamento(const Armazenamento&) = delete;
+    Armazenamento& operator=(const Armazenamento&) = delete;
 
     const std::string& caminho() const { return caminho_; }
 
-    const std::vector<Entry>& entradas() const { return entradas_; }
+    const std::vector<Entrada>& entradas() const { return entradas_; }
 
-    Entry novaEntrada(const std::string& tipo, double instante, int64_t relogio, const std::string& usuario,
+    Entrada novaEntrada(const std::string& tipo, double instante, int64_t relogio, const std::string& usuario,
                       const std::string& canal, const std::string& texto) const {
-        Entry e;
+        Entrada e;
         e.id = novoId();
         e.origem = nomeServidor_;
         e.tipo = tipo;
@@ -117,7 +117,7 @@ public:
         return e;
     }
 
-    bool adicionar(const Entry& e) {
+    bool adicionar(const Entrada& e) {
         if (ids_.count(e.id) > 0) {
             return false;
         }
@@ -146,7 +146,7 @@ private:
         return id;
     }
 
-    void aplicar(const Entry& e) {
+    void aplicar(const Entrada& e) {
         entradas_.push_back(e);
         ids_.insert(e.id);
         if (e.tipo == "channel") {
@@ -157,7 +157,7 @@ private:
     std::string nomeServidor_;
     std::string caminho_;
     int fd_ = -1;
-    std::vector<Entry> entradas_;
+    std::vector<Entrada> entradas_;
     std::unordered_set<std::string> ids_;
     std::set<std::string> canais_;
 };

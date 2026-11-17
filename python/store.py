@@ -7,7 +7,7 @@ import uuid
 NOME_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 
-class Store:
+class Armazenamento:
     def __init__(self, pasta_dados, nome_servidor):
         os.makedirs(pasta_dados, exist_ok=True)
         self.caminho = os.path.join(pasta_dados, f"{nome_servidor}.jsonl")

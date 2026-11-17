@@ -52,13 +52,13 @@ services:
 
   capitao-america-java-1:
     <<: *java
-    command: ["java", "-cp", "classes:lib/*", "bbs.Server"]
+    command: ["java", "-cp", "classes:lib/*", "bbs.Servidor"]
     environment: {SERVER_NAME: capitao-america-java-1, CLOCK_SKEW: "-3.5"}
     volumes: ["./data/capitao-america-java-1:/data"]
     depends_on: [broker, proxy, reference]
   soldado-invernal-java-2:
     <<: *java
-    command: ["java", "-cp", "classes:lib/*", "bbs.Server"]
+    command: ["java", "-cp", "classes:lib/*", "bbs.Servidor"]
     environment: {SERVER_NAME: soldado-invernal-java-2, CLOCK_SKEW: "0.5"}
     volumes: ["./data/soldado-invernal-java-2:/data"]
     depends_on: [broker, proxy, reference]
@@ -101,12 +101,12 @@ services:
     depends_on: [broker, proxy, reference]
   client-java-1:
     <<: *java
-    command: ["java", "-cp", "classes:lib/*", "bbs.Client"]
+    command: ["java", "-cp", "classes:lib/*", "bbs.Cliente"]
     environment: {BOT_NAME: capitao-america-java-1}
     depends_on: [broker, proxy, reference]
   client-java-2:
     <<: *java
-    command: ["java", "-cp", "classes:lib/*", "bbs.Client"]
+    command: ["java", "-cp", "classes:lib/*", "bbs.Cliente"]
     environment: {BOT_NAME: soldado-invernal-java-2}
     depends_on: [broker, proxy, reference]
   client-csharp-1:

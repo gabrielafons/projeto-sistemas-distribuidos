@@ -9,11 +9,11 @@ namespace Bbs
             string modo = args.Length > 0 ? args[0] : "server";
             if (modo == "client")
             {
-                new Client().Executar();
+                new Cliente().Executar();
             }
             else
             {
-                new Server().Executar();
+                new Servidor().Executar();
             }
             return 0;
         }

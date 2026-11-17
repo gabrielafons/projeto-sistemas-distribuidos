@@ -62,9 +62,9 @@ inline std::string formatar(const char* formato, double valor) {
 
 }
 
-class PhysicalClock {
+class RelogioFisico {
 public:
-    explicit PhysicalClock(double desvio) : desvio_(desvio) {}
+    explicit RelogioFisico(double desvio) : desvio_(desvio) {}
 
     double bruto() const { return util::agora() + desvio_; }
 
@@ -81,9 +81,9 @@ private:
     double correcao_ = 0.0;
 };
 
-class Messenger {
+class Mensageiro {
 public:
-    Messenger(std::string nome, PhysicalClock* fisico) : nome_(std::move(nome)), fisico_(fisico) {}
+    Mensageiro(std::string nome, RelogioFisico* fisico) : nome_(std::move(nome)), fisico_(fisico) {}
 
     const std::string& nome() const { return nome_; }
 
@@ -91,7 +91,7 @@ public:
 
     int64_t relogio() const { return relogio_; }
 
-    Envelope montar(Type tipo) {
+    Envelope montar(Tipo tipo) {
         relogio_++;
         Envelope e;
         e.set_tipo(tipo);
@@ -120,7 +120,7 @@ public:
 
 private:
     std::string nome_;
-    PhysicalClock* fisico_;
+    RelogioFisico* fisico_;
     int64_t relogio_ = 0;
 };
 

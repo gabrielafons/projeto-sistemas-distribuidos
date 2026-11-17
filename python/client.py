@@ -5,7 +5,7 @@ import time
 import zmq
 
 import chat_pb2 as pb
-from common import Messenger, codificar, hora
+from common import Mensageiro, codificar, hora
 
 BROKER_HOST = os.environ.get("BROKER_HOST", "broker")
 PROXY_HOST = os.environ.get("PROXY_HOST", "proxy")
@@ -16,10 +16,10 @@ FRASES = ["bom dia", "alguém aí?", "olá, pessoal", "testando o canal", "mensa
           "o que vocês acham?"]
 
 
-class Bot:
+class Robo:
     def __init__(self):
         self.nome = os.environ.get("BOT_NAME") or f"py-bot-{random.randint(1000, 9999)}"
-        self.mensageiro = Messenger(self.nome)
+        self.mensageiro = Mensageiro(self.nome)
         self.contexto = zmq.Context()
         self.requisicao = None
         self._conectar()
@@ -89,7 +89,7 @@ class Bot:
 
 
 def main():
-    bot = Bot()
+    bot = Robo()
     bot.login()
     while True:
         canais = bot.listar_canais()

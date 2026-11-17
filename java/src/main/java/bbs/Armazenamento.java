@@ -1,6 +1,6 @@
 package bbs;
 
-import bbs.ChatProto.LogEntry;
+import bbs.ChatProto.EntradaLog;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
@@ -18,8 +18,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-final class Store {
-    static final class Entry {
+final class Armazenamento {
+    static final class Entrada {
         @SerializedName("id")
         String id = "";
         @SerializedName("origin")
@@ -37,8 +37,8 @@ final class Store {
         @SerializedName("text")
         String texto = "";
 
-        LogEntry paraProto() {
-            return LogEntry.newBuilder()
+        EntradaLog paraProto() {
+            return EntradaLog.newBuilder()
                     .setId(id)
                     .setOrigem(origem)
                     .setTipo(tipo)
@@ -50,8 +50,8 @@ final class Store {
                     .build();
         }
 
-        static Entry deProto(LogEntry le) {
-            Entry e = new Entry();
+        static Entrada deProto(EntradaLog le) {
+            Entrada e = new Entrada();
             e.id = le.getId();
             e.origem = le.getOrigem();
             e.tipo = le.getTipo();
@@ -67,12 +67,12 @@ final class Store {
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final String nomeServidor;
     final Path caminho;
-    final List<Entry> entradas = new ArrayList<>();
+    final List<Entrada> entradas = new ArrayList<>();
     private final Set<String> ids = new HashSet<>();
     private final Set<String> canais = new TreeSet<>();
     private final FileOutputStream arquivo;
 
-    Store(String pastaDados, String nomeServidor) {
+    Armazenamento(String pastaDados, String nomeServidor) {
         this.nomeServidor = nomeServidor;
         try {
             Files.createDirectories(Path.of(pastaDados));
@@ -80,7 +80,7 @@ final class Store {
             if (Files.exists(caminho)) {
                 for (String linha : Files.readAllLines(caminho, StandardCharsets.UTF_8)) {
                     if (!linha.isBlank()) {
-                        aplicar(gson.fromJson(linha, Entry.class));
+                        aplicar(gson.fromJson(linha, Entrada.class));
                     }
                 }
             }
@@ -90,7 +90,7 @@ final class Store {
         }
     }
 
-    private void aplicar(Entry e) {
+    private void aplicar(Entrada e) {
         entradas.add(e);
         ids.add(e.id);
         if (e.tipo.equals("channel")) {
@@ -98,8 +98,8 @@ final class Store {
         }
     }
 
-    Entry novaEntrada(String tipo, double instante, long relogio, String usuario, String canal, String texto) {
-        Entry e = new Entry();
+    Entrada novaEntrada(String tipo, double instante, long relogio, String usuario, String canal, String texto) {
+        Entrada e = new Entrada();
         e.id = UUID.randomUUID().toString().replace("-", "");
         e.origem = nomeServidor;
         e.tipo = tipo;
@@ -111,7 +111,7 @@ final class Store {
         return e;
     }
 
-    boolean adicionar(Entry e) {
+    boolean adicionar(Entrada e) {
         if (ids.contains(e.id)) {
             return false;
         }

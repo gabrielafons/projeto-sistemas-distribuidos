@@ -9,7 +9,7 @@ using NetMQ.Sockets;
 
 namespace Bbs
 {
-    internal sealed class Server
+    internal sealed class Servidor
     {
         private static readonly string Nome = Util.Variavel("SERVER_NAME", "viuva-negra-csharp-1");
         private static readonly string HostBroker = Util.Variavel("BROKER_HOST", "broker");
@@ -31,9 +31,9 @@ namespace Bbs
         private const string TopicoServidores = "servers";
         private const string TopicoReplica = "replica";
 
-        private readonly PhysicalClock relogio;
-        private readonly Messenger mensageiro;
-        private readonly Store armazenamento;
+        private readonly RelogioFisico relogio;
+        private readonly Mensageiro mensageiro;
+        private readonly Armazenamento armazenamento;
         private readonly ResponseSocket atendimento = new ResponseSocket();
         private readonly ResponseSocket par = new ResponseSocket();
         private readonly PublisherSocket publicador = new PublisherSocket();
@@ -43,16 +43,16 @@ namespace Bbs
         private int rank = 0;
         private long mensagensRecebidas = 0;
         private string coordenador = null;
-        private Dictionary<string, ServerInfo> servidores = new Dictionary<string, ServerInfo>();
+        private Dictionary<string, InfoServidor> servidores = new Dictionary<string, InfoServidor>();
         private bool precisaEleicao = false;
         private long proximaEleicao = 0;
         private long proximaSync = Util.AgoraMs() + AntiEntropiaMs;
 
-        public Server()
+        public Servidor()
         {
-            relogio = new PhysicalClock(DesvioRelogio);
-            mensageiro = new Messenger(Nome, relogio);
-            armazenamento = new Store(DiretorioDados, Nome);
+            relogio = new RelogioFisico(DesvioRelogio);
+            mensageiro = new Mensageiro(Nome, relogio);
+            armazenamento = new Armazenamento(DiretorioDados, Nome);
 
             atendimento.Connect("tcp://" + HostBroker + ":5556");
             par.Bind("tcp://*:" + PortaPar);
@@ -174,7 +174,7 @@ namespace Bbs
         {
             while (true)
             {
-                Envelope requisicao = mensageiro.Montar(Type.ObterRank);
+                Envelope requisicao = mensageiro.Montar(Tipo.ObterRank);
                 requisicao.Endereco = Endereco;
                 Envelope resposta = Referencia(requisicao);
                 if (resposta != null && resposta.Status == Status.Ok)
@@ -189,7 +189,7 @@ namespace Bbs
 
         private void AtualizarServidores()
         {
-            Envelope lista = Referencia(mensageiro.Montar(Type.ListarServidores));
+            Envelope lista = Referencia(mensageiro.Montar(Tipo.ListarServidores));
             if (lista != null && lista.Status == Status.Ok)
             {
                 servidores = lista.Servidores.ToDictionary(s => s.Nome, s => s);
@@ -200,7 +200,7 @@ namespace Bbs
 
         private void Batimento()
         {
-            Envelope requisicao = mensageiro.Montar(Type.Batimento);
+            Envelope requisicao = mensageiro.Montar(Tipo.Batimento);
             requisicao.Endereco = Endereco;
             Envelope resposta = Referencia(requisicao);
             if (resposta == null)
@@ -219,10 +219,10 @@ namespace Bbs
             precisaEleicao = false;
             Console.WriteLine($"[{Nome}] iniciando eleição (rank {rank})");
             AtualizarServidores();
-            List<ServerInfo> superiores = servidores.Values.Where(s => s.Rank > rank).OrderByDescending(s => s.Rank).ToList();
-            foreach (ServerInfo s in superiores)
+            List<InfoServidor> superiores = servidores.Values.Where(s => s.Rank > rank).OrderByDescending(s => s.Rank).ToList();
+            foreach (InfoServidor s in superiores)
             {
-                Envelope requisicao = mensageiro.Montar(Type.Eleicao);
+                Envelope requisicao = mensageiro.Montar(Tipo.Eleicao);
                 requisicao.Rank = rank;
                 Envelope resposta = Pedir(s.Endereco, requisicao, TempoLimiteServidor);
                 if (resposta != null && resposta.Status == Status.Ok)
@@ -239,7 +239,7 @@ namespace Bbs
         private void VirarCoordenador()
         {
             coordenador = Nome;
-            Envelope anuncio = mensageiro.Montar(Type.Coordenador);
+            Envelope anuncio = mensageiro.Montar(Tipo.Coordenador);
             anuncio.Coordenador = Nome;
             anuncio.Rank = rank;
             Publicar(TopicoServidores, anuncio);
@@ -265,10 +265,10 @@ namespace Bbs
             Envelope resposta = null;
             double t0 = 0;
             double t1 = 0;
-            if (servidores.TryGetValue(coordenador, out ServerInfo info))
+            if (servidores.TryGetValue(coordenador, out InfoServidor info))
             {
                 t0 = relogio.Bruto();
-                resposta = Pedir(info.Endereco, mensageiro.Montar(Type.Relogio), TempoLimiteServidor);
+                resposta = Pedir(info.Endereco, mensageiro.Montar(Tipo.Relogio), TempoLimiteServidor);
                 t1 = relogio.Bruto();
             }
             if (resposta == null || resposta.Status != Status.Ok)
@@ -282,7 +282,7 @@ namespace Bbs
             Console.WriteLine($"[{Nome}] relógio ajustado pelo coordenador {coordenador}: correção de {correcao.ToString("+0.000;-0.000", CultureInfo.InvariantCulture)}s");
         }
 
-        private Envelope Erro(Type tipo, string texto)
+        private Envelope Erro(Tipo tipo, string texto)
         {
             Envelope e = mensageiro.Montar(tipo);
             e.Status = Status.Erro;
@@ -294,28 +294,28 @@ namespace Bbs
         {
             if (!mensageiro.TentarLer(dados, out Envelope envelope))
             {
-                par.SendFrame(Erro(Type.Desconhecido, "mensagem inválida").ToByteArray());
+                par.SendFrame(Erro(Tipo.Desconhecido, "mensagem inválida").ToByteArray());
                 return;
             }
             mensageiro.Exibir("RECEBE", envelope, envelope.Remetente);
             Envelope resposta;
             switch (envelope.Tipo)
             {
-                case Type.Eleicao:
+                case Tipo.Eleicao:
                     resposta = mensageiro.Montar(envelope.Tipo);
                     resposta.Status = Status.Ok;
                     resposta.Rank = rank;
                     precisaEleicao = true;
                     break;
-                case Type.Sincronizar:
+                case Tipo.Sincronizar:
                     resposta = mensageiro.Montar(envelope.Tipo);
                     resposta.Status = Status.Ok;
-                    foreach (Entry e in armazenamento.Entradas)
+                    foreach (Entrada e in armazenamento.Entradas)
                     {
                         resposta.Entradas.Add(e.ParaProto());
                     }
                     break;
-                case Type.Relogio:
+                case Tipo.Relogio:
                     if (coordenador == Nome)
                     {
                         resposta = mensageiro.Montar(envelope.Tipo);
@@ -376,23 +376,23 @@ namespace Bbs
             }
         }
 
-        private void Gravar(Entry entrada)
+        private void Gravar(Entrada entrada)
         {
             if (armazenamento.Adicionar(entrada))
             {
-                Envelope mensagem = mensageiro.Montar(Type.Replicar);
+                Envelope mensagem = mensageiro.Montar(Tipo.Replicar);
                 mensagem.Entradas.Add(entrada.ParaProto());
                 Publicar(TopicoReplica, mensagem);
                 mensageiro.Exibir("ENVIA", mensagem, "#" + TopicoReplica);
             }
         }
 
-        private int AplicarEntradas(IEnumerable<LogEntry> entradas, string origem)
+        private int AplicarEntradas(IEnumerable<EntradaLog> entradas, string origem)
         {
             int novas = 0;
-            foreach (LogEntry le in entradas)
+            foreach (EntradaLog le in entradas)
             {
-                if (armazenamento.Adicionar(Entry.DeProto(le)))
+                if (armazenamento.Adicionar(Entrada.DeProto(le)))
                 {
                     novas++;
                 }
@@ -404,9 +404,9 @@ namespace Bbs
             return novas;
         }
 
-        private void PuxarDe(ServerInfo info)
+        private void PuxarDe(InfoServidor info)
         {
-            Envelope resposta = Pedir(info.Endereco, mensageiro.Montar(Type.Sincronizar), TempoLimiteSync);
+            Envelope resposta = Pedir(info.Endereco, mensageiro.Montar(Tipo.Sincronizar), TempoLimiteSync);
             if (resposta != null && resposta.Status == Status.Ok)
             {
                 AplicarEntradas(resposta.Entradas, info.Nome);
@@ -417,18 +417,18 @@ namespace Bbs
         {
             proximaSync = Util.AgoraMs() + AntiEntropiaMs;
             AtualizarServidores();
-            List<ServerInfo> outros = servidores.Values.Where(s => s.Nome != Nome).ToList();
+            List<InfoServidor> outros = servidores.Values.Where(s => s.Nome != Nome).ToList();
             if (!todos && outros.Count > 0)
             {
-                outros = new List<ServerInfo> { outros[sorteio.Next(outros.Count)] };
+                outros = new List<InfoServidor> { outros[sorteio.Next(outros.Count)] };
             }
-            foreach (ServerInfo info in outros)
+            foreach (InfoServidor info in outros)
             {
                 PuxarDe(info);
             }
         }
 
-        private Entry Evento(string tipo, string usuario, string canal, string texto)
+        private Entrada Evento(string tipo, string usuario, string canal, string texto)
         {
             return armazenamento.NovaEntrada(tipo, relogio.Agora(), mensageiro.Relogio, usuario, canal, texto);
         }
@@ -437,7 +437,7 @@ namespace Bbs
         {
             switch (envelope.Tipo)
             {
-                case Type.Login:
+                case Tipo.Login:
                 {
                     if (!Util.NomeValido(envelope.Usuario))
                     {
@@ -449,7 +449,7 @@ namespace Bbs
                     resultado.Usuario = envelope.Usuario;
                     return resultado;
                 }
-                case Type.CriarCanal:
+                case Tipo.CriarCanal:
                 {
                     if (!Util.NomeValido(envelope.Canal))
                     {
@@ -469,7 +469,7 @@ namespace Bbs
                     resultado.Canal = envelope.Canal;
                     return resultado;
                 }
-                case Type.Publicar:
+                case Tipo.Publicar:
                 {
                     if (!Util.NomeValido(envelope.Canal))
                     {
@@ -483,7 +483,7 @@ namespace Bbs
                     {
                         return Erro(envelope.Tipo, "mensagem vazia");
                     }
-                    Envelope publicacao = mensageiro.Montar(Type.Publicacao);
+                    Envelope publicacao = mensageiro.Montar(Tipo.Publicacao);
                     publicacao.Usuario = envelope.Remetente;
                     publicacao.Canal = envelope.Canal;
                     publicacao.Texto = envelope.Texto;
@@ -495,7 +495,7 @@ namespace Bbs
                     resultado.Canal = envelope.Canal;
                     return resultado;
                 }
-                case Type.ListarCanais:
+                case Tipo.ListarCanais:
                 {
                     Envelope resultado = mensageiro.Montar(envelope.Tipo);
                     resultado.Status = Status.Ok;
@@ -511,7 +511,7 @@ namespace Bbs
         {
             if (!mensageiro.TentarLer(dados, out Envelope envelope))
             {
-                Envelope invalida = Erro(Type.Desconhecido, "mensagem inválida (não é um Envelope Protobuf)");
+                Envelope invalida = Erro(Tipo.Desconhecido, "mensagem inválida (não é um Envelope Protobuf)");
                 atendimento.SendFrame(invalida.ToByteArray());
                 mensageiro.Exibir("ENVIA", invalida, "");
                 return;

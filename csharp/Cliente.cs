@@ -8,7 +8,7 @@ using NetMQ.Sockets;
 
 namespace Bbs
 {
-    internal sealed class Client
+    internal sealed class Cliente
     {
         private static readonly string HostBroker = Util.Variavel("BROKER_HOST", "broker");
         private static readonly string HostProxy = Util.Variavel("PROXY_HOST", "proxy");
@@ -22,17 +22,17 @@ namespace Bbs
         };
 
         private readonly Random sorteio = new Random();
-        private readonly Messenger mensageiro;
+        private readonly Mensageiro mensageiro;
         private readonly SubscriberSocket assinante = new SubscriberSocket();
         private readonly HashSet<string> inscritos = new HashSet<string>();
         private RequestSocket requisicao;
         private string nome;
 
-        public Client()
+        public Cliente()
         {
             string bot = Util.Variavel("BOT_NAME", "");
             nome = bot.Length > 0 ? bot : NomeAleatorio();
-            mensageiro = new Messenger(nome, new PhysicalClock(0));
+            mensageiro = new Mensageiro(nome, new RelogioFisico(0));
             assinante.Connect("tcp://" + HostProxy + ":5558");
             Conectar();
         }
@@ -77,7 +77,7 @@ namespace Bbs
         {
             while (true)
             {
-                Envelope pedido = mensageiro.Montar(Type.Login);
+                Envelope pedido = mensageiro.Montar(Tipo.Login);
                 pedido.Usuario = nome;
                 if (Requisitar(pedido).Status == Status.Ok)
                 {
@@ -91,13 +91,13 @@ namespace Bbs
 
         private List<string> ListarCanais()
         {
-            Envelope resposta = Requisitar(mensageiro.Montar(Type.ListarCanais));
+            Envelope resposta = Requisitar(mensageiro.Montar(Tipo.ListarCanais));
             return resposta.Status == Status.Ok ? resposta.Canais.ToList() : new List<string>();
         }
 
         private bool CriarCanal(string canal)
         {
-            Envelope pedido = mensageiro.Montar(Type.CriarCanal);
+            Envelope pedido = mensageiro.Montar(Tipo.CriarCanal);
             pedido.Canal = canal;
             return Requisitar(pedido).Status == Status.Ok;
         }
@@ -111,7 +111,7 @@ namespace Bbs
 
         private bool Publicar(string canal, string texto)
         {
-            Envelope pedido = mensageiro.Montar(Type.Publicar);
+            Envelope pedido = mensageiro.Montar(Tipo.Publicar);
             pedido.Canal = canal;
             pedido.Texto = texto;
             return Requisitar(pedido).Status == Status.Ok;

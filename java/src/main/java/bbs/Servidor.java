@@ -1,11 +1,11 @@
 package bbs;
 
 import bbs.ChatProto.Envelope;
-import bbs.ChatProto.LogEntry;
-import bbs.ChatProto.ServerInfo;
+import bbs.ChatProto.EntradaLog;
+import bbs.ChatProto.InfoServidor;
 import bbs.ChatProto.Status;
-import bbs.ChatProto.Type;
-import bbs.Store.Entry;
+import bbs.ChatProto.Tipo;
+import bbs.Armazenamento.Entrada;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
-public final class Server {
+public final class Servidor {
     static final String NOME = Util.variavel("SERVER_NAME", "capitao-america-java-1");
     static final String BROKER_HOST = Util.variavel("BROKER_HOST", "broker");
     static final String PROXY_HOST = Util.variavel("PROXY_HOST", "proxy");
@@ -42,13 +42,13 @@ public final class Server {
     static final String TOPICO_REPLICA = "replica";
     static final Set<String> RESERVADOS = Set.of(TOPICO_SERVIDORES, TOPICO_REPLICA);
 
-    private final Messenger mensageiro;
-    private final PhysicalClock relogio;
-    private final Store armazenamento;
+    private final Mensageiro mensageiro;
+    private final RelogioFisico relogio;
+    private final Armazenamento armazenamento;
     private int rank = 0;
     private long mensagensRecebidas = 0;
     private String coordenador = null;
-    private Map<String, ServerInfo> servidores = new LinkedHashMap<>();
+    private Map<String, InfoServidor> servidores = new LinkedHashMap<>();
     private boolean precisaEleicao = false;
     private long proximaEleicao = 0;
     private long proximaSync = System.currentTimeMillis() + ANTI_ENTROPIA;
@@ -60,10 +60,10 @@ public final class Server {
     private final ZMQ.Socket publicador;
     private final ZMQ.Socket assinante;
 
-    Server() {
-        relogio = new PhysicalClock(DESVIO_RELOGIO);
-        mensageiro = new Messenger(NOME, relogio);
-        armazenamento = new Store(DATA_DIR, NOME);
+    Servidor() {
+        relogio = new RelogioFisico(DESVIO_RELOGIO);
+        mensageiro = new Mensageiro(NOME, relogio);
+        armazenamento = new Armazenamento(DATA_DIR, NOME);
 
         atendimento = contexto.createSocket(SocketType.REP);
         atendimento.connect("tcp://" + BROKER_HOST + ":5556");
@@ -135,7 +135,7 @@ public final class Server {
 
     private void registrar() {
         while (true) {
-            Envelope resposta = referencia(mensageiro.montar(Type.OBTER_RANK).setEndereco(ENDERECO).build());
+            Envelope resposta = referencia(mensageiro.montar(Tipo.OBTER_RANK).setEndereco(ENDERECO).build());
             if (resposta != null && resposta.getStatus() == Status.OK) {
                 rank = resposta.getRank();
                 System.out.println("[" + NOME + "] rank " + rank + ", endereço " + ENDERECO);
@@ -146,11 +146,11 @@ public final class Server {
     }
 
     private void atualizarServidores() {
-        Envelope lista = referencia(mensageiro.montar(Type.LISTAR_SERVIDORES).build());
+        Envelope lista = referencia(mensageiro.montar(Tipo.LISTAR_SERVIDORES).build());
         if (lista != null && lista.getStatus() == Status.OK) {
             servidores = new LinkedHashMap<>();
             List<String> nomes = new ArrayList<>();
-            for (ServerInfo s : lista.getServidoresList()) {
+            for (InfoServidor s : lista.getServidoresList()) {
                 servidores.put(s.getNome(), s);
                 nomes.add(s.getNome() + "(rank " + s.getRank() + ")");
             }
@@ -159,7 +159,7 @@ public final class Server {
     }
 
     private void batimento() {
-        Envelope resposta = referencia(mensageiro.montar(Type.BATIMENTO).setEndereco(ENDERECO).build());
+        Envelope resposta = referencia(mensageiro.montar(Tipo.BATIMENTO).setEndereco(ENDERECO).build());
         if (resposta == null) {
             return;
         }
@@ -173,15 +173,15 @@ public final class Server {
         precisaEleicao = false;
         System.out.println("[" + NOME + "] iniciando eleição (rank " + rank + ")");
         atualizarServidores();
-        List<ServerInfo> superiores = new ArrayList<>();
-        for (ServerInfo s : servidores.values()) {
+        List<InfoServidor> superiores = new ArrayList<>();
+        for (InfoServidor s : servidores.values()) {
             if (s.getRank() > rank) {
                 superiores.add(s);
             }
         }
-        superiores.sort(Comparator.comparingInt(ServerInfo::getRank).reversed());
-        for (ServerInfo s : superiores) {
-            Envelope resposta = pedir(s.getEndereco(), mensageiro.montar(Type.ELEICAO).setRank(rank).build(), TIMEOUT_SERVIDOR);
+        superiores.sort(Comparator.comparingInt(InfoServidor::getRank).reversed());
+        for (InfoServidor s : superiores) {
+            Envelope resposta = pedir(s.getEndereco(), mensageiro.montar(Tipo.ELEICAO).setRank(rank).build(), TIMEOUT_SERVIDOR);
             if (resposta != null && resposta.getStatus() == Status.OK) {
                 System.out.println("[" + NOME + "] " + s.getNome() + " (rank " + s.getRank() + ") respondeu OK: aguardando o anúncio");
                 coordenador = null;
@@ -194,7 +194,7 @@ public final class Server {
 
     private void virarCoordenador() {
         coordenador = NOME;
-        Envelope anuncio = mensageiro.montar(Type.COORDENADOR).setCoordenador(NOME).setRank(rank).build();
+        Envelope anuncio = mensageiro.montar(Tipo.COORDENADOR).setCoordenador(NOME).setRank(rank).build();
         publicar(TOPICO_SERVIDORES, anuncio);
         mensageiro.exibir("ENVIA", anuncio, "#" + TOPICO_SERVIDORES, "");
         System.out.println("[" + NOME + "] eleito coordenador");
@@ -208,7 +208,7 @@ public final class Server {
             System.out.println("[" + NOME + "] sou o coordenador: meu relógio é a referência");
             return;
         }
-        ServerInfo info = servidores.get(coordenador);
+        InfoServidor info = servidores.get(coordenador);
         if (info == null) {
             atualizarServidores();
             info = servidores.get(coordenador);
@@ -218,7 +218,7 @@ public final class Server {
         double t1 = 0;
         if (info != null) {
             t0 = relogio.bruto();
-            resposta = pedir(info.getEndereco(), mensageiro.montar(Type.RELOGIO).build(), TIMEOUT_SERVIDOR);
+            resposta = pedir(info.getEndereco(), mensageiro.montar(Tipo.RELOGIO).build(), TIMEOUT_SERVIDOR);
             t1 = relogio.bruto();
         }
         if (resposta == null || resposta.getStatus() != Status.OK) {
@@ -231,7 +231,7 @@ public final class Server {
         System.out.println(String.format("[%s] relógio ajustado pelo coordenador %s: correção de %+.3fs", NOME, coordenador, correcao));
     }
 
-    private Envelope erro(Type tipo, String texto) {
+    private Envelope erro(Tipo tipo, String texto) {
         return mensageiro.montar(tipo).setStatus(Status.ERRO).setErro(texto).build();
     }
 
@@ -240,7 +240,7 @@ public final class Server {
         try {
             envelope = mensageiro.ler(dados);
         } catch (InvalidProtocolBufferException e) {
-            par.send(erro(Type.DESCONHECIDO, "mensagem inválida").toByteArray(), 0);
+            par.send(erro(Tipo.DESCONHECIDO, "mensagem inválida").toByteArray(), 0);
             return;
         }
         mensageiro.exibir("RECEBE", envelope, envelope.getRemetente(), "");
@@ -252,7 +252,7 @@ public final class Server {
                 break;
             case SINCRONIZAR:
                 Envelope.Builder b = mensageiro.montar(envelope.getTipo()).setStatus(Status.OK);
-                for (Entry e : armazenamento.entradas) {
+                for (Entrada e : armazenamento.entradas) {
                     b.addEntradas(e.paraProto());
                 }
                 resposta = b.build();
@@ -304,15 +304,15 @@ public final class Server {
         }
     }
 
-    private void gravar(Entry entrada) {
+    private void gravar(Entrada entrada) {
         if (armazenamento.adicionar(entrada)) {
             replicar(List.of(entrada));
         }
     }
 
-    private void replicar(List<Entry> entradas) {
-        Envelope.Builder b = mensageiro.montar(Type.REPLICAR);
-        for (Entry e : entradas) {
+    private void replicar(List<Entrada> entradas) {
+        Envelope.Builder b = mensageiro.montar(Tipo.REPLICAR);
+        for (Entrada e : entradas) {
             b.addEntradas(e.paraProto());
         }
         Envelope mensagem = b.build();
@@ -320,10 +320,10 @@ public final class Server {
         mensageiro.exibir("ENVIA", mensagem, "#" + TOPICO_REPLICA, "");
     }
 
-    private int aplicarEntradas(List<LogEntry> entradas, String origem) {
+    private int aplicarEntradas(List<EntradaLog> entradas, String origem) {
         int novas = 0;
-        for (LogEntry le : entradas) {
-            if (armazenamento.adicionar(Entry.deProto(le))) {
+        for (EntradaLog le : entradas) {
+            if (armazenamento.adicionar(Entrada.deProto(le))) {
                 novas++;
             }
         }
@@ -333,8 +333,8 @@ public final class Server {
         return novas;
     }
 
-    private void puxarDe(ServerInfo info) {
-        Envelope resposta = pedir(info.getEndereco(), mensageiro.montar(Type.SINCRONIZAR).build(), TIMEOUT_SYNC);
+    private void puxarDe(InfoServidor info) {
+        Envelope resposta = pedir(info.getEndereco(), mensageiro.montar(Tipo.SINCRONIZAR).build(), TIMEOUT_SYNC);
         if (resposta != null && resposta.getStatus() == Status.OK) {
             aplicarEntradas(resposta.getEntradasList(), info.getNome());
         }
@@ -343,8 +343,8 @@ public final class Server {
     private void antiEntropia(boolean todos) {
         proximaSync = System.currentTimeMillis() + ANTI_ENTROPIA;
         atualizarServidores();
-        List<ServerInfo> outros = new ArrayList<>();
-        for (ServerInfo s : servidores.values()) {
+        List<InfoServidor> outros = new ArrayList<>();
+        for (InfoServidor s : servidores.values()) {
             if (!s.getNome().equals(NOME)) {
                 outros.add(s);
             }
@@ -352,12 +352,12 @@ public final class Server {
         if (!todos && !outros.isEmpty()) {
             outros = List.of(outros.get(sorteio.nextInt(outros.size())));
         }
-        for (ServerInfo info : outros) {
+        for (InfoServidor info : outros) {
             puxarDe(info);
         }
     }
 
-    private Entry evento(String tipo, String usuario, String canal, String texto) {
+    private Entrada evento(String tipo, String usuario, String canal, String texto) {
         return armazenamento.novaEntrada(tipo, relogio.agora(), mensageiro.relogio, usuario, canal, texto);
     }
 
@@ -393,7 +393,7 @@ public final class Server {
                 if (envelope.getTexto().isEmpty()) {
                     return erro(envelope.getTipo(), "mensagem vazia");
                 }
-                Envelope publicacao = mensageiro.montar(Type.PUBLICACAO)
+                Envelope publicacao = mensageiro.montar(Tipo.PUBLICACAO)
                         .setUsuario(envelope.getRemetente())
                         .setCanal(envelope.getCanal())
                         .setTexto(envelope.getTexto())
@@ -416,7 +416,7 @@ public final class Server {
         try {
             envelope = mensageiro.ler(dados);
         } catch (InvalidProtocolBufferException e) {
-            Envelope resposta = erro(Type.DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)");
+            Envelope resposta = erro(Tipo.DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)");
             atendimento.send(resposta.toByteArray(), 0);
             mensageiro.exibir("ENVIA", resposta, "", "");
             return;
@@ -468,6 +468,6 @@ public final class Server {
     }
 
     public static void main(String[] args) {
-        new Server().executar();
+        new Servidor().executar();
     }
 }

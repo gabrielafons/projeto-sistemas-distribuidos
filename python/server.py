@@ -5,8 +5,8 @@ import time
 import zmq
 
 import chat_pb2 as pb
-from common import Messenger, PhysicalClock, codificar, entrada_de_proto, entrada_para_proto
-from store import Store, NOME_RE
+from common import Mensageiro, RelogioFisico, codificar, entrada_de_proto, entrada_para_proto
+from store import Armazenamento, NOME_RE
 
 NOME = os.environ.get("SERVER_NAME", "homem-de-ferro-python-1")
 BROKER_HOST = os.environ.get("BROKER_HOST", "broker")
@@ -30,11 +30,11 @@ TOPICO_REPLICA = "replica"
 RESERVADOS = {TOPICO_SERVIDORES, TOPICO_REPLICA}
 
 
-class Server:
+class Servidor:
     def __init__(self):
-        self.mensageiro = Messenger(NOME, PhysicalClock(DESVIO_RELOGIO))
+        self.mensageiro = Mensageiro(NOME, RelogioFisico(DESVIO_RELOGIO))
         self.relogio = self.mensageiro.fisico
-        self.armazenamento = Store(DATA_DIR, NOME)
+        self.armazenamento = Armazenamento(DATA_DIR, NOME)
         self.rank = None
         self.mensagens_recebidas = 0
         self.coordenador = None
@@ -308,4 +308,4 @@ class Server:
 
 
 if __name__ == "__main__":
-    Server().executar()
+    Servidor().executar()

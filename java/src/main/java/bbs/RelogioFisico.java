@@ -1,10 +1,10 @@
 package bbs;
 
-final class PhysicalClock {
+final class RelogioFisico {
     private final double desvio;
     private double correcao = 0.0;
 
-    PhysicalClock(double desvio) {
+    RelogioFisico(double desvio) {
         this.desvio = desvio;
     }
 

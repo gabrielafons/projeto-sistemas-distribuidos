@@ -9,8 +9,8 @@ WORKDIR /app/build
 COPY proto/chat.proto ./
 COPY cpp/ ./
 RUN protoc --cpp_out=. chat.proto \
- && g++ -std=c++17 -O2 -I. -o bbs-server Server.cpp chat.pb.cc -lzmq -lprotobuf -pthread \
- && g++ -std=c++17 -O2 -I. -o bbs-client Client.cpp chat.pb.cc -lzmq -lprotobuf -pthread
+ && g++ -std=c++17 -O2 -I. -o bbs-server Servidor.cpp chat.pb.cc -lzmq -lprotobuf -pthread \
+ && g++ -std=c++17 -O2 -I. -o bbs-client Cliente.cpp chat.pb.cc -lzmq -lprotobuf -pthread
 
 FROM ubuntu:24.04
 

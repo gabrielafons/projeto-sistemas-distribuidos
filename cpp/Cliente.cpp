@@ -21,9 +21,9 @@ long long agoraMs() {
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
-class Bot {
+class Robo {
 public:
-    Bot()
+    Robo()
         : gerador_(std::random_device{}()),
           relogio_(0.0),
           mensageiro_(inicial(), &relogio_),
@@ -182,8 +182,8 @@ private:
     }
 
     std::mt19937 gerador_;
-    PhysicalClock relogio_;
-    Messenger mensageiro_;
+    RelogioFisico relogio_;
+    Mensageiro mensageiro_;
     std::string nome_;
     zmq::context_t contexto_;
     zmq::socket_t assinante_;
@@ -194,7 +194,7 @@ private:
 }  // namespace
 
 int main() {
-    Bot bot;
+    Robo bot;
     bot.executar();
     return 0;
 }

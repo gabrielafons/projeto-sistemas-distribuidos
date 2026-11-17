@@ -4,11 +4,11 @@ import time
 import zmq
 
 import chat_pb2 as pb
-from client import Bot
+from client import Robo
 from common import hora
 
 
-class ClienteManual(Bot):
+class ClienteManual(Robo):
     def requisitar(self, envelope):
         self.requisicao.send(envelope.SerializeToString())
         if not self.requisicao.poll(10000):

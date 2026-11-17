@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 
 namespace Bbs
 {
-    internal sealed class Entry
+    internal sealed class Entrada
     {
         [JsonPropertyName("id")] public string Id { get; set; } = "";
         [JsonPropertyName("origin")] public string Origem { get; set; } = "";
@@ -20,9 +20,9 @@ namespace Bbs
         [JsonPropertyName("channel")] public string Canal { get; set; } = "";
         [JsonPropertyName("text")] public string Texto { get; set; } = "";
 
-        public LogEntry ParaProto()
+        public EntradaLog ParaProto()
         {
-            return new LogEntry
+            return new EntradaLog
             {
                 Id = Id,
                 Origem = Origem,
@@ -35,9 +35,9 @@ namespace Bbs
             };
         }
 
-        public static Entry DeProto(LogEntry le)
+        public static Entrada DeProto(EntradaLog le)
         {
-            return new Entry
+            return new Entrada
             {
                 Id = le.Id,
                 Origem = le.Origem,
@@ -51,7 +51,7 @@ namespace Bbs
         }
     }
 
-    internal sealed class Store
+    internal sealed class Armazenamento
     {
         private static readonly JsonSerializerOptions Opcoes = new JsonSerializerOptions
         {
@@ -64,9 +64,9 @@ namespace Bbs
         private readonly SortedSet<string> canais = new SortedSet<string>(StringComparer.Ordinal);
 
         public string Caminho { get; }
-        public List<Entry> Entradas { get; } = new List<Entry>();
+        public List<Entrada> Entradas { get; } = new List<Entrada>();
 
-        public Store(string pastaDados, string nomeServidor)
+        public Armazenamento(string pastaDados, string nomeServidor)
         {
             this.nomeServidor = nomeServidor;
             Directory.CreateDirectory(pastaDados);
@@ -79,7 +79,7 @@ namespace Bbs
                     {
                         continue;
                     }
-                    Entry e = JsonSerializer.Deserialize<Entry>(linha, Opcoes);
+                    Entrada e = JsonSerializer.Deserialize<Entrada>(linha, Opcoes);
                     if (e != null)
                     {
                         Aplicar(e);
@@ -89,7 +89,7 @@ namespace Bbs
             arquivo = new FileStream(Caminho, FileMode.Append, FileAccess.Write, FileShare.Read);
         }
 
-        private void Aplicar(Entry e)
+        private void Aplicar(Entrada e)
         {
             Entradas.Add(e);
             ids.Add(e.Id);
@@ -99,9 +99,9 @@ namespace Bbs
             }
         }
 
-        public Entry NovaEntrada(string tipo, double instante, long relogio, string usuario, string canal, string texto)
+        public Entrada NovaEntrada(string tipo, double instante, long relogio, string usuario, string canal, string texto)
         {
-            return new Entry
+            return new Entrada
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Origem = nomeServidor,
@@ -114,7 +114,7 @@ namespace Bbs
             };
         }
 
-        public bool Adicionar(Entry e)
+        public bool Adicionar(Entrada e)
         {
             if (ids.Contains(e.Id))
             {

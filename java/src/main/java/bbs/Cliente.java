@@ -2,7 +2,7 @@ package bbs;
 
 import bbs.ChatProto.Envelope;
 import bbs.ChatProto.Status;
-import bbs.ChatProto.Type;
+import bbs.ChatProto.Tipo;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-public final class Client {
+public final class Cliente {
     static final String BROKER_HOST = Util.variavel("BROKER_HOST", "broker");
     static final String PROXY_HOST = Util.variavel("PROXY_HOST", "proxy");
     static final int TIMEOUT_MS = 5000;
@@ -28,16 +28,16 @@ public final class Client {
 
     private final Random sorteio = new Random();
     private final ZContext contexto = new ZContext();
-    private final Messenger mensageiro;
+    private final Mensageiro mensageiro;
     private final ZMQ.Socket assinante;
     private final Set<String> inscritos = new LinkedHashSet<>();
     private ZMQ.Socket requisicao;
     private String nome;
 
-    Client() {
+    Cliente() {
         String bot = System.getenv("BOT_NAME");
         nome = bot != null && !bot.isEmpty() ? bot : nomeAleatorio();
-        mensageiro = new Messenger(nome, new PhysicalClock(0));
+        mensageiro = new Mensageiro(nome, new RelogioFisico(0));
         conectar();
         assinante = contexto.createSocket(SocketType.SUB);
         assinante.connect("tcp://" + PROXY_HOST + ":5558");
@@ -79,7 +79,7 @@ public final class Client {
 
     private void login() {
         while (true) {
-            Envelope resposta = requisitar(mensageiro.montar(Type.LOGIN).setUsuario(nome).build());
+            Envelope resposta = requisitar(mensageiro.montar(Tipo.LOGIN).setUsuario(nome).build());
             if (resposta.getStatus() == Status.OK) {
                 return;
             }
@@ -90,12 +90,12 @@ public final class Client {
     }
 
     private List<String> listarCanais() {
-        Envelope resposta = requisitar(mensageiro.montar(Type.LISTAR_CANAIS).build());
+        Envelope resposta = requisitar(mensageiro.montar(Tipo.LISTAR_CANAIS).build());
         return resposta.getStatus() == Status.OK ? new ArrayList<>(resposta.getCanaisList()) : new ArrayList<>();
     }
 
     private boolean criarCanal(String nomeCanal) {
-        Envelope resposta = requisitar(mensageiro.montar(Type.CRIAR_CANAL).setCanal(nomeCanal).build());
+        Envelope resposta = requisitar(mensageiro.montar(Tipo.CRIAR_CANAL).setCanal(nomeCanal).build());
         return resposta.getStatus() == Status.OK;
     }
 
@@ -106,7 +106,7 @@ public final class Client {
     }
 
     private boolean publicar(String canal, String texto) {
-        Envelope resposta = requisitar(mensageiro.montar(Type.PUBLICAR).setCanal(canal).setTexto(texto).build());
+        Envelope resposta = requisitar(mensageiro.montar(Tipo.PUBLICAR).setCanal(canal).setTexto(texto).build());
         return resposta.getStatus() == Status.OK;
     }
 
@@ -178,6 +178,6 @@ public final class Client {
     }
 
     public static void main(String[] args) {
-        new Client().executar();
+        new Cliente().executar();
     }
 }

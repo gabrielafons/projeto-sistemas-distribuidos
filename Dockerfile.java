@@ -21,4 +21,4 @@ WORKDIR /app
 COPY --from=build /app/java/target/classes ./classes
 COPY --from=build /app/java/target/lib ./lib
 
-CMD ["java", "-cp", "classes:lib/*", "bbs.Server"]
+CMD ["java", "-cp", "classes:lib/*", "bbs.Servidor"]

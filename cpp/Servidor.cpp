@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "Common.hpp"
-#include "Store.hpp"
+#include "Armazenamento.hpp"
 
 namespace {
 
@@ -39,9 +39,9 @@ bool reservado(const std::string& nome) {
     return nome == TOPICO_SERVIDORES || nome == TOPICO_REPLICA;
 }
 
-class Server {
+class Servidor {
 public:
-    Server()
+    Servidor()
         : relogio_(DESVIO_RELOGIO),
           mensageiro_(NOME, &relogio_),
           armazenamento_(DIRETORIO_DADOS, NOME),
@@ -187,14 +187,14 @@ private:
         precisaEleicao_ = false;
         std::cout << "[" << NOME << "] iniciando eleição (rank " << rank_ << ")" << std::endl;
         atualizarServidores();
-        std::vector<ServerInfo> superiores;
+        std::vector<InfoServidor> superiores;
         for (const auto& [nome, s] : servidores_) {
             if (s.rank() > rank_) {
                 superiores.push_back(s);
             }
         }
         std::sort(superiores.begin(), superiores.end(),
-                  [](const ServerInfo& a, const ServerInfo& b) { return a.rank() > b.rank(); });
+                  [](const InfoServidor& a, const InfoServidor& b) { return a.rank() > b.rank(); });
         for (const auto& s : superiores) {
             Envelope requisicao = mensageiro_.montar(ELEICAO);
             requisicao.set_rank(rank_);
@@ -255,7 +255,7 @@ private:
                   << buf << "s" << std::endl;
     }
 
-    Envelope erro(Type tipo, const std::string& texto) {
+    Envelope erro(Tipo tipo, const std::string& texto) {
         Envelope e = mensageiro_.montar(tipo);
         e.set_status(ERRO);
         e.set_erro(texto);
@@ -332,7 +332,7 @@ private:
         }
     }
 
-    void gravar(const Entry& entrada) {
+    void gravar(const Entrada& entrada) {
         if (armazenamento_.adicionar(entrada)) {
             Envelope mensagem = mensageiro_.montar(REPLICAR);
             *mensagem.add_entradas() = entrada.paraProto();
@@ -345,7 +345,7 @@ private:
     int aplicarEntradas(const Colecao& entradas, const std::string& origem) {
         int novas = 0;
         for (const auto& le : entradas) {
-            if (armazenamento_.adicionar(Entry::deProto(le))) {
+            if (armazenamento_.adicionar(Entrada::deProto(le))) {
                 novas++;
             }
         }
@@ -356,7 +356,7 @@ private:
         return novas;
     }
 
-    void puxarDe(const ServerInfo& info) {
+    void puxarDe(const InfoServidor& info) {
         auto resposta = pedir(info.endereco(), mensageiro_.montar(SINCRONIZAR), TEMPO_LIMITE_SYNC);
         if (resposta && resposta->status() == OK) {
             aplicarEntradas(resposta->entradas(), info.nome());
@@ -366,7 +366,7 @@ private:
     void antiEntropia(bool todos) {
         proximaSync_ = agoraMs() + ANTI_ENTROPIA;
         atualizarServidores();
-        std::vector<ServerInfo> outros;
+        std::vector<InfoServidor> outros;
         for (const auto& [nome, s] : servidores_) {
             if (nome != NOME) {
                 outros.push_back(s);
@@ -374,7 +374,7 @@ private:
         }
         if (!todos && !outros.empty()) {
             std::uniform_int_distribution<size_t> d(0, outros.size() - 1);
-            ServerInfo escolhido = outros[d(sorteio_)];
+            InfoServidor escolhido = outros[d(sorteio_)];
             outros = {escolhido};
         }
         for (const auto& info : outros) {
@@ -382,7 +382,7 @@ private:
         }
     }
 
-    Entry evento(const std::string& tipo, const std::string& usuario, const std::string& canal,
+    Entrada evento(const std::string& tipo, const std::string& usuario, const std::string& canal,
                  const std::string& texto) {
         return armazenamento_.novaEntrada(tipo, relogio_.agora(), mensageiro_.relogio(), usuario, canal, texto);
     }
@@ -473,9 +473,9 @@ private:
         }
     }
 
-    PhysicalClock relogio_;
-    Messenger mensageiro_;
-    Store armazenamento_;
+    RelogioFisico relogio_;
+    Mensageiro mensageiro_;
+    Armazenamento armazenamento_;
     zmq::context_t contexto_;
     zmq::socket_t atendimento_;
     zmq::socket_t par_;
@@ -484,7 +484,7 @@ private:
     int rank_ = 0;
     long long mensagensRecebidas_ = 0;
     std::string coordenador_;
-    std::map<std::string, ServerInfo> servidores_;
+    std::map<std::string, InfoServidor> servidores_;
     bool precisaEleicao_ = false;
     long long proximaEleicao_ = 0;
     long long proximaSync_;
@@ -494,7 +494,7 @@ private:
 }  // namespace
 
 int main() {
-    Server servidor;
+    Servidor servidor;
     servidor.executar();
     return 0;
 }

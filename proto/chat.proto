@@ -4,7 +4,7 @@ option java_package = "bbs";
 option java_outer_classname = "ChatProto";
 option csharp_namespace = "Bbs";
 
-enum Type {
+enum Tipo {
   DESCONHECIDO = 0;
   LOGIN = 1;
   LISTAR_CANAIS = 2;
@@ -27,13 +27,13 @@ enum Status {
   ERRO = 2;
 }
 
-message ServerInfo {
+message InfoServidor {
   string nome = 1;
   int32 rank = 2;
   string endereco = 3;
 }
 
-message LogEntry {
+message EntradaLog {
   string id = 1;
   string origem = 2;
   string tipo = 3;
@@ -45,7 +45,7 @@ message LogEntry {
 }
 
 message Envelope {
-  Type tipo = 1;
+  Tipo tipo = 1;
   string remetente = 2;
   double instante = 3;
   Status status = 4;
@@ -56,9 +56,9 @@ message Envelope {
   string texto = 9;
   int64 relogio = 10;
   int32 rank = 11;
-  repeated ServerInfo servidores = 12;
+  repeated InfoServidor servidores = 12;
   double hora = 13;
   string coordenador = 14;
   string endereco = 15;
-  repeated LogEntry entradas = 16;
+  repeated EntradaLog entradas = 16;
 }
