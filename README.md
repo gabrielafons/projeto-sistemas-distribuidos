@@ -71,7 +71,7 @@ Espere aparecer `PRONTO PARA RECEBER` e deixe este terminal aberto.
 docker compose run --rm --no-deps -v "${PWD}/demonstracao.py:/app/demonstracao.py:ro" broker python -u demonstracao.py enviar --nome gabriel
 ```
 
-Quando aparecer `gabriel>`, digite a mensagem e pressione Enter. A mensagem aparece no terminal do Professor. Em `gabriel>`, `/historico` consulta as mensagens e `/sair` encerra.
+Quando aparecer `gabriel>`, digite a mensagem e pressione Enter. A mensagem aparece no terminal do Professor. Em `gabriel>`, `/sair` encerra.
 
 **3. Logs dos servidores (um terminal para cada linha)**
 
@@ -88,7 +88,7 @@ Liga os bots (geram mensagens automaticamente) e acompanha os registros:
 
 ```bash
 docker compose start client-python-1 client-python-2 client-java-1 client-java-2 client-csharp-1 client-csharp-2 client-cpp-1 client-cpp-2
-docker compose logs --tail 10 -f | Select-String -Pattern 'CLOCK|HEARTBEAT|coordenador|corre'
+docker compose logs --tail 10 -f | Select-String -Pattern 'RELOGIO|BATIMENTO|coordenador|corre'
 ```
 
 O segundo comando usa `Select-String`, do PowerShell. Para parar os bots e voltar a enviar só pelo Gabriel:
@@ -121,15 +121,15 @@ Toda mensagem é um `Envelope` Protobuf (`proto/chat.proto`):
 
 | Campo | Significado |
 |---|---|
-| `type` | `LOGIN`, `LIST_CHANNELS`, `CREATE_CHANNEL`, `PUBLISH` (pedido de publicação), `PUBLICATION` (mensagem publicada no canal), `GET_RANK`, `LIST_SERVERS` e `HEARTBEAT` (servidor ⇄ referência), `ELECTION`, `CLOCK` e `COORDINATOR` (entre servidores), `REPLICATE` e `SYNC` (replicação) e `HISTORY` (histórico de um canal) |
-| `sender` | nome de quem enviou |
-| `timestamp` | instante do envio, pelo relógio físico do remetente (**obrigatório em todas as mensagens**) |
-| `clock` | valor do relógio lógico (Lamport) de quem envia |
-| `status` / `error` | `OK` ou `ERROR` e a descrição do erro (nas respostas) |
-| `user`, `channel`, `channels`, `text` | dados da requisição/resposta e texto da mensagem |
-| `rank`, `servers`, `address` | rank do servidor, lista de servidores (`ServerInfo`: nome, rank e endereço) e endereço do servidor, usados com o serviço de referência |
-| `time`, `coordinator` | hora correta informada pelo coordenador e nome do coordenador eleito |
-| `entries`, `total` | entradas replicadas (`LogEntry`: id, origem, tipo, timestamp, relógio lógico, usuário, canal, texto) e total de mensagens de um canal |
+| `tipo` | `LOGIN`, `LISTAR_CANAIS`, `CRIAR_CANAL`, `PUBLICAR` (pedido de publicação), `PUBLICACAO` (mensagem publicada no canal), `OBTER_RANK`, `LISTAR_SERVIDORES` e `BATIMENTO` (servidor ⇄ referência), `ELEICAO`, `RELOGIO` e `COORDENADOR` (entre servidores) e `REPLICAR` e `SINCRONIZAR` (replicação) |
+| `remetente` | nome de quem enviou |
+| `instante` | instante do envio, pelo relógio físico do remetente (**obrigatório em todas as mensagens**) |
+| `relogio` | valor do relógio lógico (Lamport) de quem envia |
+| `status` / `erro` | `OK` ou `ERRO` e a descrição do erro (nas respostas) |
+| `usuario`, `canal`, `canais`, `texto` | dados da requisição/resposta e texto da mensagem |
+| `rank`, `servidores`, `endereco` | rank do servidor, lista de servidores (`ServerInfo`: nome, rank e endereço) e endereço do servidor, usados com o serviço de referência |
+| `hora`, `coordenador` | hora correta informada pelo coordenador e nome do coordenador eleito |
+| `entradas` | entradas replicadas (`LogEntry`: id, origem, tipo, instante, relógio lógico, usuário, canal, texto) |
 
 ### Arquitetura
 
@@ -144,25 +144,25 @@ Os clientes usam `REQ` e os servidores `REP`. O broker (`python/broker.py`) é u
 
 ### Login, erros e repetição
 
-O bot envia `LOGIN` (apenas uma mensagem) e o servidor responde `OK` ou `ERROR`. O nome do usuário precisa ter de 1 a 32 caracteres entre letras, números, `_` e `-`. Em caso de erro o bot **repete o login** (com outro nome). Não há senha, só o nome do usuário.
+O bot envia `LOGIN` (apenas uma mensagem) e o servidor responde `OK` ou `ERRO`. O nome do usuário precisa ter de 1 a 32 caracteres entre letras, números, `_` e `-`. Em caso de erro o bot **repete o login** (com outro nome). Não há senha, só o nome do usuário.
 
 ### Canais
 
-- `CREATE_CHANNEL`: o servidor responde `ERROR` se o nome for inválido (mesma regra do usuário) ou se o canal já existir **naquele servidor**.
-- `LIST_CHANNELS`: o servidor devolve a lista com os nomes dos canais que conhece.
+- `CRIAR_CANAL`: o servidor responde `ERRO` se o nome for inválido (mesma regra do usuário) ou se o canal já existir **naquele servidor**.
+- `LISTAR_CANAIS`: o servidor devolve a lista com os nomes dos canais que conhece.
 - Critério do bot: se a lista tiver menos de 5 canais, ele cria um canal com nome `canal-NNNN`.
 
 ### Publicação em canais (Parte 2)
 
 ```
-Usuário ->> Servidor: REQ  PUBLISH (canal, texto)
-Servidor ->> Canal:   PUB  PUBLICATION  (tópico = nome do canal)
-Servidor ->> Usuário: REP  OK/ERROR
+Usuário ->> Servidor: REQ  PUBLICAR (canal, texto)
+Servidor ->> Canal:   PUB  PUBLICACAO  (tópico = nome do canal)
+Servidor ->> Usuário: REP  OK/ERRO
 ```
 
 - O **nome do canal é o tópico** da mensagem PUB. A mensagem tem 2 frames: o tópico (nome do canal) e o `Envelope` serializado.
-- Tanto o pedido (`PUBLISH`) quanto a publicação (`PUBLICATION`) levam o timestamp do envio; a publicação tem o seu próprio timestamp, do instante em que o servidor publica.
-- O servidor responde `ERROR` se o nome do canal for inválido ou se o texto for vazio. O canal pode ter sido criado em **outro** servidor e a replicação é eventual (pode ainda não ter chegado), então o servidor não rejeita canais que não conhece.
+- Tanto o pedido (`PUBLICAR`) quanto a publicação (`PUBLICACAO`) levam o timestamp do envio; a publicação tem o seu próprio timestamp, do instante em que o servidor publica.
+- O servidor responde `ERRO` se o nome do canal for inválido ou se o texto for vazio. O canal pode ter sido criado em **outro** servidor e a replicação é eventual (pode ainda não ter chegado), então o servidor não rejeita canais que não conhece.
 - **Inscrição:** é feita só no cliente (`SUB` no XPUB do proxy), que pode se inscrever em vários tópicos na mesma conexão. O filtro do ZeroMQ casa o *início* do tópico (`canal-1` também receberia `canal-12`), então o cliente confere se o tópico é exatamente igual a um canal em que está inscrito. Cada publicação recebida é exibida com o canal, a mensagem, o timestamp do envio e o timestamp do recebimento.
 
 ### Funcionamento padronizado dos bots
@@ -177,10 +177,10 @@ O enunciado descreve os passos 1 e 2 "ao conectar". Como cada passo cria/inscrev
 ### Relógio lógico (Parte 3)
 
 Clientes, servidores e o serviço de referência têm um contador (Lamport) que começa em 0 junto com o processo:
-1. **antes de enviar** qualquer mensagem o contador é incrementado e o valor vai no campo `clock`;
+1. **antes de enviar** qualquer mensagem o contador é incrementado e o valor vai no campo `relogio`;
 2. **ao receber**, o contador passa a ser `max(valor local, valor da mensagem)`.
 
-Isso está em `Messenger.build()` / `Messenger.parse()` (`python/common.py`, `java/.../Messenger.java`, `csharp/Util.cs` e `cpp/Common.hpp`), então vale para todas as mensagens. O valor do contador aparece nos logs como `[nome|L=...]`. O relógio lógico também é gravado em cada evento persistido (campo `clock`).
+Isso está em `Messenger.montar()` / `Messenger.ler()` (`python/common.py`, `java/.../Messenger.java`, `csharp/Util.cs` e `cpp/Common.hpp`), então vale para todas as mensagens. O valor do contador aparece nos logs como `[nome|L=...]`. O relógio lógico também é gravado em cada evento persistido (campo `relogio`).
 
 ### Serviço de referência e heartbeat (Partes 3 e 4)
 
@@ -188,29 +188,29 @@ Processo separado (`python/reference.py`, porta 5559) que só conversa com os se
 
 | Pedido (REQ) | Resposta (REP) |
 |---|---|
-| `GET_RANK` (o servidor se identifica pelo `sender` e informa o seu `address`) | `rank` do servidor. O nome é cadastrado sem repetição e o rank de um nome nunca muda (1, 2, 3... na ordem de cadastro) |
-| `LIST_SERVERS` | nome, rank e endereço de todos os servidores disponíveis |
-| `HEARTBEAT` | `OK` |
+| `OBTER_RANK` (o servidor se identifica pelo `remetente` e informa o seu `endereco`) | `rank` do servidor. O nome é cadastrado sem repetição e o rank de um nome nunca muda (1, 2, 3... na ordem de cadastro) |
+| `LISTAR_SERVIDORES` | nome, rank e endereço de todos os servidores disponíveis |
+| `BATIMENTO` | `OK` |
 
-- **Heartbeat:** cada servidor envia um `HEARTBEAT` a cada **10 mensagens de clientes recebidas**. A referência remove da lista o servidor que ficar mais de 30 s sem enviar (`HEARTBEAT_TIMEOUT`); se ele voltar a enviar, volta para a lista com o mesmo rank. Se a referência não conhecer o servidor (por exemplo, se ela reiniciou), responde `ERROR` e o servidor pede o rank de novo. Depois de cada heartbeat o servidor pede `LIST_SERVERS` e guarda a lista.
+- **Heartbeat:** cada servidor envia um `BATIMENTO` a cada **10 mensagens de clientes recebidas**. A referência remove da lista o servidor que ficar mais de 30 s sem enviar (`HEARTBEAT_TIMEOUT`); se ele voltar a enviar, volta para a lista com o mesmo rank. Se a referência não conhecer o servidor (por exemplo, se ela reiniciou), responde `ERRO` e o servidor pede o rank de novo. Depois de cada heartbeat o servidor pede `LISTAR_SERVIDORES` e guarda a lista.
 - Na Parte 3 a resposta do heartbeat trazia a hora correta. **Na Parte 4 a referência não devolve mais a hora**: quem fornece a hora é o coordenador.
 
 ### Eleição do coordenador e sincronização do relógio (Parte 4)
 
-Cada servidor guarda em `coordinator` o nome do servidor eleito.
+Cada servidor guarda em `coordenador` o nome do servidor eleito.
 
 **Eleição (algoritmo do valentão):** o rank vem da referência.
-1. O servidor pede a lista de servidores e envia `ELECTION` (REQ) para os de **rank maior**, do maior para o menor, direto no endereço deles (porta 6000, `PEER_PORT`).
-2. Se algum responder `OK`, ele "assume" a eleição: quem recebe um `ELECTION` responde `OK` e inicia a sua própria eleição. O servidor que perguntou fica esperando o anúncio (até 5 s; depois tenta de novo).
-3. Se nenhum de rank maior responder, o servidor vence: passa a se considerar coordenador e **publica** `COORDINATOR` (com o seu nome) no tópico `servers` do Pub-Sub. Todos os servidores assinam o tópico e atualizam a variável `coordinator`.
-4. A eleição acontece quando o servidor inicia (ainda sem coordenador), quando recebe um `ELECTION` de outro servidor, quando o coordenador não responde, ou quando chega o anúncio de um coordenador com rank menor que o dele.
+1. O servidor pede a lista de servidores e envia `ELEICAO` (REQ) para os de **rank maior**, do maior para o menor, direto no endereço deles (porta 6000, `PEER_PORT`).
+2. Se algum responder `OK`, ele "assume" a eleição: quem recebe um `ELEICAO` responde `OK` e inicia a sua própria eleição. O servidor que perguntou fica esperando o anúncio (até 5 s; depois tenta de novo).
+3. Se nenhum de rank maior responder, o servidor vence: passa a se considerar coordenador e **publica** `COORDENADOR` (com o seu nome) no tópico `servers` do Pub-Sub. Todos os servidores assinam o tópico e atualizam a variável `coordenador`.
+4. A eleição acontece quando o servidor inicia (ainda sem coordenador), quando recebe um `ELEICAO` de outro servidor, quando o coordenador não responde, ou quando chega o anúncio de um coordenador com rank menor que o dele.
 
 `servers` (e `replica`, da Parte 5) são nomes reservados: nenhum usuário pode criar ou publicar em um canal com esse nome.
 
 **Sincronização do relógio:** a cada **15 mensagens de clientes recebidas** o servidor que não é coordenador faz:
 
 ```
-Servidor ->> Coordenador: REQ: CLOCK
+Servidor ->> Coordenador: REQ: RELOGIO
 Coordenador ->> Servidor: REP: hora correta
 ```
 
@@ -232,10 +232,6 @@ Escolhemos um log de eventos (só acrescenta no fim) porque qualquer informaçã
 
 Se o serviço não responder em 5 s, o cliente recria o socket `REQ` e reenvia a requisição (o `REQ` do ZeroMQ fica preso esperando resposta quando o servidor cai no meio da requisição).
 
-### Histórico de um canal
-
-Além dos pedidos exigidos, o cliente pode pedir `HISTORY` (canal) e o servidor devolve o total de mensagens do canal e as últimas 10, na ordem do relógio lógico. O bot faz esse pedido depois de cada rodada de 10 mensagens: como o broker distribui os pedidos entre os servidores, dá para ver que qualquer servidor responde com o histórico completo.
-
 ## Replicação dos dados (Parte 5)
 
 ### O problema
@@ -254,8 +250,8 @@ Por que resolve o problema: depois de cada escrita, os servidores ativos recebem
 ### Como foi implementado
 
 1. **Unidade de replicação:** cada evento é uma entrada do log (`LogEntry`) com `id` único (UUID), servidor de origem, tipo (`login`, `channel` ou `message`), timestamp e relógio lógico. Replicamos **logins, canais e mensagens**, ou seja, todos os dados.
-2. **Push:** depois de gravar em disco uma escrita de cliente, o servidor publica uma mensagem `REPLICATE` com a entrada no tópico `replica` do Pub-Sub (o mesmo proxy). Todos os servidores assinam o tópico, ignoram o que eles mesmos publicaram e gravam as entradas novas. O cliente recebe a resposta sem esperar a replicação.
-3. **Pull (anti-entropia):** `SYNC` é um REQ/REP direto entre servidores (porta 6000, o mesmo canal da eleição). O servidor responde com todas as suas entradas e quem pediu grava as que não tinha. O pull acontece **ao iniciar** (de todos os servidores disponíveis) e **a cada 20 s** (de um servidor sorteado).
+2. **Push:** depois de gravar em disco uma escrita de cliente, o servidor publica uma mensagem `REPLICAR` com a entrada no tópico `replica` do Pub-Sub (o mesmo proxy). Todos os servidores assinam o tópico, ignoram o que eles mesmos publicaram e gravam as entradas novas. O cliente recebe a resposta sem esperar a replicação.
+3. **Pull (anti-entropia):** `SINCRONIZAR` é um REQ/REP direto entre servidores (porta 6000, o mesmo canal da eleição). O servidor responde com todas as suas entradas e quem pediu grava as que não tinha. O pull acontece **ao iniciar** (de todos os servidores disponíveis) e **a cada 20 s** (de um servidor sorteado).
 4. **Sem duplicatas:** gravar é idempotente, pois uma entrada com `id` já conhecido é descartada. Por isso o push e o pull podem entregar a mesma entrada sem problema.
 5. **Ordem:** as mensagens de um canal são ordenadas por (relógio lógico, servidor de origem, id), a mesma ordem em todas as réplicas.
 6. **Servidor que cai e volta, ou servidor novo:** ao iniciar, ele lê o próprio arquivo e depois faz o pull dos outros, recuperando tudo o que perdeu. A recuperação deve ser verificada parando e reiniciando um servidor durante as escritas e comparando os históricos após a sincronização. Esse cenário ainda precisa ser ensaiado nesta versão.
@@ -267,8 +263,7 @@ Cada arquivo `data/<servidor>/<servidor>.jsonl` passa a conter **todas** as entr
 - **Pull além do push.** O Pub-Sub não é confiável (como vimos: assinante que entra tarde, mensagem perdida, servidor que cai). Só o push não garantiria que todos os servidores ficassem com todos os dados, então acrescentamos o pull ao iniciar e periódico.
 - **Escritas idempotentes com id único**, porque push e pull se sobrepõem.
 - **Qualquer servidor aceita escritas** (não há réplica primária). Funciona porque as escritas são só acréscimos. Se dois servidores criarem o mesmo canal ao mesmo tempo, os dois respondem `OK` e depois da replicação existe um canal só (união pelo nome).
-- **Transferimos o log inteiro no `SYNC`.** É simples e suficiente para o volume deste projeto; um sistema real enviaria só o que falta.
-- **Limitação:** a consistência é eventual. Um `HISTORY` logo após uma escrita pode ainda não incluí-la e, como cada pedido pode cair em um servidor diferente, duas leituras seguidas podem mostrar quantidades diferentes por um instante (não garantimos leituras monotônicas).
+- **Transferimos o log inteiro no `SINCRONIZAR`.** É simples e suficiente para o volume deste projeto; um sistema real enviaria só o que falta.
 
 ## Estrutura
 

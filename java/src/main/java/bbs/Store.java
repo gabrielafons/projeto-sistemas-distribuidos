@@ -3,6 +3,7 @@ package bbs;
 import bbs.ChatProto.LogEntry;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.SerializedName;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -11,7 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -20,122 +20,117 @@ import java.util.UUID;
 
 final class Store {
     static final class Entry {
+        @SerializedName("id")
         String id = "";
-        String origin = "";
-        String kind = "";
-        double ts = 0;
-        long clock = 0;
-        String user = "";
-        String channel = "";
-        String text = "";
+        @SerializedName("origin")
+        String origem = "";
+        @SerializedName("kind")
+        String tipo = "";
+        @SerializedName("ts")
+        double instante = 0;
+        @SerializedName("clock")
+        long relogio = 0;
+        @SerializedName("user")
+        String usuario = "";
+        @SerializedName("channel")
+        String canal = "";
+        @SerializedName("text")
+        String texto = "";
 
-        LogEntry toProto() {
+        LogEntry paraProto() {
             return LogEntry.newBuilder()
                     .setId(id)
-                    .setOrigin(origin)
-                    .setKind(kind)
-                    .setTimestamp(ts)
-                    .setClock(clock)
-                    .setUser(user)
-                    .setChannel(channel)
-                    .setText(text)
+                    .setOrigem(origem)
+                    .setTipo(tipo)
+                    .setInstante(instante)
+                    .setRelogio(relogio)
+                    .setUsuario(usuario)
+                    .setCanal(canal)
+                    .setTexto(texto)
                     .build();
         }
 
-        static Entry fromProto(LogEntry le) {
+        static Entry deProto(LogEntry le) {
             Entry e = new Entry();
             e.id = le.getId();
-            e.origin = le.getOrigin();
-            e.kind = le.getKind();
-            e.ts = le.getTimestamp();
-            e.clock = le.getClock();
-            e.user = le.getUser();
-            e.channel = le.getChannel();
-            e.text = le.getText();
+            e.origem = le.getOrigem();
+            e.tipo = le.getTipo();
+            e.instante = le.getInstante();
+            e.relogio = le.getRelogio();
+            e.usuario = le.getUsuario();
+            e.canal = le.getCanal();
+            e.texto = le.getTexto();
             return e;
         }
     }
 
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
-    private final String serverName;
-    final Path path;
-    final List<Entry> entries = new ArrayList<>();
+    private final String nomeServidor;
+    final Path caminho;
+    final List<Entry> entradas = new ArrayList<>();
     private final Set<String> ids = new HashSet<>();
-    private final Set<String> channels = new TreeSet<>();
-    private final FileOutputStream file;
+    private final Set<String> canais = new TreeSet<>();
+    private final FileOutputStream arquivo;
 
-    Store(String dataDir, String serverName) {
-        this.serverName = serverName;
+    Store(String pastaDados, String nomeServidor) {
+        this.nomeServidor = nomeServidor;
         try {
-            Files.createDirectories(Path.of(dataDir));
-            this.path = Path.of(dataDir, serverName + ".jsonl");
-            if (Files.exists(path)) {
-                for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-                    if (!line.isBlank()) {
-                        apply(gson.fromJson(line, Entry.class));
+            Files.createDirectories(Path.of(pastaDados));
+            this.caminho = Path.of(pastaDados, nomeServidor + ".jsonl");
+            if (Files.exists(caminho)) {
+                for (String linha : Files.readAllLines(caminho, StandardCharsets.UTF_8)) {
+                    if (!linha.isBlank()) {
+                        aplicar(gson.fromJson(linha, Entry.class));
                     }
                 }
             }
-            this.file = new FileOutputStream(path.toFile(), true);
+            this.arquivo = new FileOutputStream(caminho.toFile(), true);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private void apply(Entry e) {
-        entries.add(e);
+    private void aplicar(Entry e) {
+        entradas.add(e);
         ids.add(e.id);
-        if (e.kind.equals("channel")) {
-            channels.add(e.channel);
+        if (e.tipo.equals("channel")) {
+            canais.add(e.canal);
         }
     }
 
-    Entry newEntry(String kind, double ts, long clock, String user, String channel, String text) {
+    Entry novaEntrada(String tipo, double instante, long relogio, String usuario, String canal, String texto) {
         Entry e = new Entry();
         e.id = UUID.randomUUID().toString().replace("-", "");
-        e.origin = serverName;
-        e.kind = kind;
-        e.ts = ts;
-        e.clock = clock;
-        e.user = user;
-        e.channel = channel;
-        e.text = text;
+        e.origem = nomeServidor;
+        e.tipo = tipo;
+        e.instante = instante;
+        e.relogio = relogio;
+        e.usuario = usuario;
+        e.canal = canal;
+        e.texto = texto;
         return e;
     }
 
-    boolean add(Entry e) {
+    boolean adicionar(Entry e) {
         if (ids.contains(e.id)) {
             return false;
         }
-        apply(e);
+        aplicar(e);
         try {
-            file.write((gson.toJson(e) + "\n").getBytes(StandardCharsets.UTF_8));
-            file.flush();
-            file.getFD().sync();
+            arquivo.write((gson.toJson(e) + "\n").getBytes(StandardCharsets.UTF_8));
+            arquivo.flush();
+            arquivo.getFD().sync();
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
         return true;
     }
 
-    List<Entry> messages(String channel) {
-        List<Entry> msgs = new ArrayList<>();
-        for (Entry e : entries) {
-            if (e.kind.equals("message") && e.channel.equals(channel)) {
-                msgs.add(e);
-            }
-        }
-        msgs.sort(Comparator.<Entry>comparingLong(x -> x.clock)
-                .thenComparing(x -> x.origin)
-                .thenComparing(x -> x.id));
-        return msgs;
+    boolean temCanal(String nome) {
+        return canais.contains(nome);
     }
 
-    boolean hasChannel(String name) {
-        return channels.contains(name);
-    }
-
-    List<String> channelNames() {
-        return new ArrayList<>(channels);
+    List<String> nomesCanais() {
+        return new ArrayList<>(canais);
     }
 }

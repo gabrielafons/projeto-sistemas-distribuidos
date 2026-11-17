@@ -1,8 +1,5 @@
 name: bbs-marvel
 
-# Projeto completo (Partes 1 a 5): broker, proxy Pub/Sub, serviço de referência,
-# 2 servidores e 2 clientes (bots) por integrante (Python, Java, C# e C++)
-
 x-python: &python
   build:
     context: .
@@ -28,25 +25,18 @@ x-java: &java
   image: cc7261/bbs-java
 
 services:
-  # Broker do Request-Reply (ROUTER :5555 para clientes, DEALER :5556 para servidores)
   broker:
     <<: *python
     command: ["python", "broker.py"]
 
-  # Proxy do Pub/Sub (XSUB :5557 para publishers, XPUB :5558 para subscribers)
   proxy:
     <<: *python
     command: ["python", "proxy.py"]
 
-  # Serviço de referência: rank, lista de servidores e heartbeat (:5559)
   reference:
     <<: *python
     command: ["python", "reference.py"]
 
-  # ---- Servidores em Python ----
-  # CLOCK_SKEW: só para testes. Simula um relógio físico adiantado/atrasado (em segundos)
-  # para que a sincronização do relógio seja visível nos logs.
-  # Os servidores falam entre si (eleição e relógio) pelo nome do serviço, porta 6000.
   homem-de-ferro-python-1:
     <<: *python
     command: ["python", "server.py"]
@@ -60,7 +50,6 @@ services:
     volumes: ["./data/maquina-de-combate-python-2:/data"]
     depends_on: [broker, proxy, reference]
 
-  # ---- Servidores em Java ----
   capitao-america-java-1:
     <<: *java
     command: ["java", "-cp", "classes:lib/*", "bbs.Server"]
@@ -74,7 +63,6 @@ services:
     volumes: ["./data/soldado-invernal-java-2:/data"]
     depends_on: [broker, proxy, reference]
 
-  # ---- Servidores em C# ----
   viuva-negra-csharp-1:
     <<: *csharp
     command: ["dotnet", "Bbs.dll", "server"]
@@ -88,7 +76,6 @@ services:
     volumes: ["./data/gaviao-arqueiro-csharp-2:/data"]
     depends_on: [broker, proxy, reference]
 
-  # ---- Servidores em C++ ----
   visao-cpp-1:
     <<: *cpp
     command: ["bbs-server"]
@@ -102,7 +89,6 @@ services:
     volumes: ["./data/feiticeira-escarlate-cpp-2:/data"]
     depends_on: [broker, proxy, reference]
 
-  # Dois clientes por linguagem, com nomes fixos para a demonstracao.
   client-python-1:
     <<: *python
     command: ["python", "client.py"]

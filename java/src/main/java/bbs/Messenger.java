@@ -5,34 +5,34 @@ import bbs.ChatProto.Type;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 final class Messenger {
-    String name;
-    final PhysicalClock physical;
-    long clock = 0;
+    String nome;
+    final PhysicalClock fisico;
+    long relogio = 0;
 
-    Messenger(String name, PhysicalClock physical) {
-        this.name = name;
-        this.physical = physical;
+    Messenger(String nome, PhysicalClock fisico) {
+        this.nome = nome;
+        this.fisico = fisico;
     }
 
-    Envelope.Builder build(Type type) {
-        clock++;
+    Envelope.Builder montar(Type tipo) {
+        relogio++;
         return Envelope.newBuilder()
-                .setType(type)
-                .setSender(name)
-                .setTimestamp(physical.now())
-                .setClock(clock);
+                .setTipo(tipo)
+                .setRemetente(nome)
+                .setInstante(fisico.agora())
+                .setRelogio(relogio);
     }
 
-    Envelope parse(byte[] data) throws InvalidProtocolBufferException {
-        Envelope env = Envelope.parseFrom(data);
-        clock = Math.max(clock, env.getClock());
-        return env;
+    Envelope ler(byte[] dados) throws InvalidProtocolBufferException {
+        Envelope envelope = Envelope.parseFrom(dados);
+        relogio = Math.max(relogio, envelope.getRelogio());
+        return envelope;
     }
 
-    void show(String direction, Envelope env, String other, String extra) {
-        String seta = direction.equals("ENVIA") ? "->" : "<-";
-        String corpo = env.toString().replaceAll("\\s+", " ").trim();
+    void exibir(String direcao, Envelope envelope, String outro, String extra) {
+        String seta = direcao.equals("ENVIA") ? "->" : "<-";
+        String corpo = envelope.toString().replaceAll("\\s+", " ").trim();
         System.out.println(String.format("%s [%s|L=%d] %-7s %s %-14s %s%s",
-                Util.hora(), name, clock, direction, seta, other, corpo, extra));
+                Util.hora(), nome, relogio, direcao, seta, outro, corpo, extra));
     }
 }

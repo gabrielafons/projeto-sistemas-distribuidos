@@ -3,7 +3,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -18,77 +17,77 @@
 
 struct Entry {
     std::string id;
-    std::string origin;
-    std::string kind;
-    double ts = 0;
-    int64_t clock = 0;
-    std::string user;
-    std::string channel;
-    std::string text;
+    std::string origem;
+    std::string tipo;
+    double instante = 0;
+    int64_t relogio = 0;
+    std::string usuario;
+    std::string canal;
+    std::string texto;
 
-    LogEntry toProto() const {
+    LogEntry paraProto() const {
         LogEntry le;
         le.set_id(id);
-        le.set_origin(origin);
-        le.set_kind(kind);
-        le.set_timestamp(ts);
-        le.set_clock(clock);
-        le.set_user(user);
-        le.set_channel(channel);
-        le.set_text(text);
+        le.set_origem(origem);
+        le.set_tipo(tipo);
+        le.set_instante(instante);
+        le.set_relogio(relogio);
+        le.set_usuario(usuario);
+        le.set_canal(canal);
+        le.set_texto(texto);
         return le;
     }
 
-    static Entry fromProto(const LogEntry& le) {
+    static Entry deProto(const LogEntry& le) {
         Entry e;
         e.id = le.id();
-        e.origin = le.origin();
-        e.kind = le.kind();
-        e.ts = le.timestamp();
-        e.clock = le.clock();
-        e.user = le.user();
-        e.channel = le.channel();
-        e.text = le.text();
+        e.origem = le.origem();
+        e.tipo = le.tipo();
+        e.instante = le.instante();
+        e.relogio = le.relogio();
+        e.usuario = le.usuario();
+        e.canal = le.canal();
+        e.texto = le.texto();
         return e;
     }
 
-    std::string toJson() const {
-        nlohmann::json j = {{"id", id},   {"origin", origin}, {"kind", kind}, {"ts", ts},
-                            {"clock", clock}, {"user", user},     {"channel", channel}, {"text", text}};
+    std::string paraJson() const {
+        nlohmann::json j = {{"id", id},   {"origin", origem}, {"kind", tipo}, {"ts", instante},
+                            {"clock", relogio}, {"user", usuario}, {"channel", canal}, {"text", texto}};
         return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
     }
 
-    static Entry fromJson(const nlohmann::json& j) {
+    static Entry deJson(const nlohmann::json& j) {
         Entry e;
         e.id = j.value("id", "");
-        e.origin = j.value("origin", "");
-        e.kind = j.value("kind", "");
-        e.ts = j.value("ts", 0.0);
-        e.clock = j.value("clock", static_cast<int64_t>(0));
-        e.user = j.value("user", "");
-        e.channel = j.value("channel", "");
-        e.text = j.value("text", "");
+        e.origem = j.value("origin", "");
+        e.tipo = j.value("kind", "");
+        e.instante = j.value("ts", 0.0);
+        e.relogio = j.value("clock", static_cast<int64_t>(0));
+        e.usuario = j.value("user", "");
+        e.canal = j.value("channel", "");
+        e.texto = j.value("text", "");
         return e;
     }
 };
 
 class Store {
 public:
-    Store(const std::string& dataDir, const std::string& serverName) : serverName_(serverName) {
-        std::filesystem::create_directories(dataDir);
-        path_ = dataDir + "/" + serverName + ".jsonl";
-        std::ifstream in(path_);
+    Store(const std::string& pastaDados, const std::string& nomeServidor) : nomeServidor_(nomeServidor) {
+        std::filesystem::create_directories(pastaDados);
+        caminho_ = pastaDados + "/" + nomeServidor + ".jsonl";
+        std::ifstream entrada(caminho_);
         std::string linha;
-        while (std::getline(in, linha)) {
+        while (std::getline(entrada, linha)) {
             if (linha.find_first_not_of(" \t\r\n") == std::string::npos) {
                 continue;
             }
             auto j = nlohmann::json::parse(linha, nullptr, false);
             if (!j.is_discarded()) {
-                aplicar(Entry::fromJson(j));
+                aplicar(Entry::deJson(j));
             }
         }
-        fd_ = ::open(path_.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+        fd_ = ::open(caminho_.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
     }
 
     ~Store() {
@@ -100,30 +99,30 @@ public:
     Store(const Store&) = delete;
     Store& operator=(const Store&) = delete;
 
-    const std::string& path() const { return path_; }
+    const std::string& caminho() const { return caminho_; }
 
-    const std::vector<Entry>& entries() const { return entries_; }
+    const std::vector<Entry>& entradas() const { return entradas_; }
 
-    Entry newEntry(const std::string& kind, double ts, int64_t clock, const std::string& user,
-                   const std::string& channel, const std::string& text) const {
+    Entry novaEntrada(const std::string& tipo, double instante, int64_t relogio, const std::string& usuario,
+                      const std::string& canal, const std::string& texto) const {
         Entry e;
         e.id = novoId();
-        e.origin = serverName_;
-        e.kind = kind;
-        e.ts = ts;
-        e.clock = clock;
-        e.user = user;
-        e.channel = channel;
-        e.text = text;
+        e.origem = nomeServidor_;
+        e.tipo = tipo;
+        e.instante = instante;
+        e.relogio = relogio;
+        e.usuario = usuario;
+        e.canal = canal;
+        e.texto = texto;
         return e;
     }
 
-    bool add(const Entry& e) {
+    bool adicionar(const Entry& e) {
         if (ids_.count(e.id) > 0) {
             return false;
         }
         aplicar(e);
-        std::string linha = e.toJson() + "\n";
+        std::string linha = e.paraJson() + "\n";
         if (::write(fd_, linha.data(), linha.size()) < 0) {
             return true;
         }
@@ -131,49 +130,34 @@ public:
         return true;
     }
 
-    std::vector<Entry> messages(const std::string& channel) const {
-        std::vector<Entry> msgs;
-        for (const auto& e : entries_) {
-            if (e.kind == "message" && e.channel == channel) {
-                msgs.push_back(e);
-            }
-        }
-        std::sort(msgs.begin(), msgs.end(), [](const Entry& a, const Entry& b) {
-            if (a.clock != b.clock) return a.clock < b.clock;
-            if (a.origin != b.origin) return a.origin < b.origin;
-            return a.id < b.id;
-        });
-        return msgs;
-    }
+    bool temCanal(const std::string& nome) const { return canais_.count(nome) > 0; }
 
-    bool hasChannel(const std::string& name) const { return channels_.count(name) > 0; }
-
-    std::vector<std::string> channelNames() const { return {channels_.begin(), channels_.end()}; }
+    std::vector<std::string> nomesCanais() const { return {canais_.begin(), canais_.end()}; }
 
 private:
     static std::string novoId() {
         static std::random_device rd;
-        static std::mt19937_64 gen(rd());
+        static std::mt19937_64 gerador(rd());
         static const char* hex = "0123456789abcdef";
         std::string id(32, '0');
         for (auto& c : id) {
-            c = hex[gen() & 0xF];
+            c = hex[gerador() & 0xF];
         }
         return id;
     }
 
     void aplicar(const Entry& e) {
-        entries_.push_back(e);
+        entradas_.push_back(e);
         ids_.insert(e.id);
-        if (e.kind == "channel") {
-            channels_.insert(e.channel);
+        if (e.tipo == "channel") {
+            canais_.insert(e.canal);
         }
     }
 
-    std::string serverName_;
-    std::string path_;
+    std::string nomeServidor_;
+    std::string caminho_;
     int fd_ = -1;
-    std::vector<Entry> entries_;
+    std::vector<Entry> entradas_;
     std::unordered_set<std::string> ids_;
-    std::set<std::string> channels_;
+    std::set<std::string> canais_;
 };

@@ -27,7 +27,6 @@ docker compose run --rm --no-deps -v "${PWD}/demonstracao.py:/app/demonstracao.p
 
 Quando aparecer gabriel>, escreva sua mensagem e aperte Enter.
 Clique em Professor - Recebe para ver a mensagem chegando.
-No Gabriel, digite /historico para consultar as mensagens.
 
 3. PYTHON
 
@@ -66,7 +65,7 @@ docker compose start client-python-1 client-python-2 client-java-1 client-java-2
 
 Depois acompanhe os registros de relogio, heartbeat e coordenador:
 
-docker compose logs --tail 10 -f | Select-String -Pattern 'CLOCK|HEARTBEAT|coordenador|corre'
+docker compose logs --tail 10 -f | Select-String -Pattern 'RELOGIO|BATIMENTO|coordenador|corre'
 
 O Professor tambem vai receber mensagens automaticas dos herois.
 Para sair desse acompanhamento, pressione Ctrl+C. Os bots continuam ligados.

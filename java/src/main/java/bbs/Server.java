@@ -21,14 +21,14 @@ import java.util.Random;
 import java.util.Set;
 
 public final class Server {
-    static final String NAME = Util.env("SERVER_NAME", "capitao-america-java-1");
-    static final String BROKER_HOST = Util.env("BROKER_HOST", "broker");
-    static final String PROXY_HOST = Util.env("PROXY_HOST", "proxy");
-    static final String REF_HOST = Util.env("REF_HOST", "reference");
-    static final String DATA_DIR = Util.env("DATA_DIR", "/data");
-    static final String PEER_PORT = Util.env("PEER_PORT", "6000");
-    static final String ADDRESS = Util.env("ADVERTISE_ADDR", "tcp://" + NAME + ":" + PEER_PORT);
-    static final double CLOCK_SKEW = Double.parseDouble(Util.env("CLOCK_SKEW", "0"));
+    static final String NOME = Util.variavel("SERVER_NAME", "capitao-america-java-1");
+    static final String BROKER_HOST = Util.variavel("BROKER_HOST", "broker");
+    static final String PROXY_HOST = Util.variavel("PROXY_HOST", "proxy");
+    static final String REF_HOST = Util.variavel("REF_HOST", "reference");
+    static final String DATA_DIR = Util.variavel("DATA_DIR", "/data");
+    static final String PEER_PORT = Util.variavel("PEER_PORT", "6000");
+    static final String ENDERECO = Util.variavel("ADVERTISE_ADDR", "tcp://" + NOME + ":" + PEER_PORT);
+    static final double DESVIO_RELOGIO = Double.parseDouble(Util.variavel("CLOCK_SKEW", "0"));
 
     static final int HEARTBEAT_A_CADA = 10;
     static final int SINCRONIZA_A_CADA = 15;
@@ -37,85 +37,84 @@ public final class Server {
     static final long ESPERA_ANUNCIO = 5000;
     static final long ANTI_ENTROPIA = 20000;
     static final long TIMEOUT_SYNC = 3000;
-    static final int HISTORICO = 10;
 
     static final String TOPICO_SERVIDORES = "servers";
     static final String TOPICO_REPLICA = "replica";
     static final Set<String> RESERVADOS = Set.of(TOPICO_SERVIDORES, TOPICO_REPLICA);
 
-    private final Messenger msgr;
+    private final Messenger mensageiro;
     private final PhysicalClock relogio;
-    private final Store store;
+    private final Store armazenamento;
     private int rank = 0;
-    private long nMsgs = 0;
-    private String coordinator = null;
+    private long mensagensRecebidas = 0;
+    private String coordenador = null;
     private Map<String, ServerInfo> servidores = new LinkedHashMap<>();
     private boolean precisaEleicao = false;
     private long proximaEleicao = 0;
     private long proximaSync = System.currentTimeMillis() + ANTI_ENTROPIA;
-    private final Random random = new Random();
+    private final Random sorteio = new Random();
 
-    private final ZContext ctx = new ZContext();
+    private final ZContext contexto = new ZContext();
     private final ZMQ.Socket rep;
-    private final ZMQ.Socket peer;
+    private final ZMQ.Socket par;
     private final ZMQ.Socket pub;
     private final ZMQ.Socket sub;
 
     Server() {
-        relogio = new PhysicalClock(CLOCK_SKEW);
-        msgr = new Messenger(NAME, relogio);
-        store = new Store(DATA_DIR, NAME);
+        relogio = new PhysicalClock(DESVIO_RELOGIO);
+        mensageiro = new Messenger(NOME, relogio);
+        armazenamento = new Store(DATA_DIR, NOME);
 
-        rep = ctx.createSocket(SocketType.REP);
+        rep = contexto.createSocket(SocketType.REP);
         rep.connect("tcp://" + BROKER_HOST + ":5556");
 
-        peer = ctx.createSocket(SocketType.REP);
-        peer.bind("tcp://*:" + PEER_PORT);
+        par = contexto.createSocket(SocketType.REP);
+        par.bind("tcp://*:" + PEER_PORT);
 
-        pub = ctx.createSocket(SocketType.PUB);
+        pub = contexto.createSocket(SocketType.PUB);
         pub.connect("tcp://" + PROXY_HOST + ":5557");
 
-        sub = ctx.createSocket(SocketType.SUB);
+        sub = contexto.createSocket(SocketType.SUB);
         sub.connect("tcp://" + PROXY_HOST + ":5558");
         sub.subscribe(TOPICO_SERVIDORES.getBytes(StandardCharsets.UTF_8));
         sub.subscribe(TOPICO_REPLICA.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static byte[] bytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
+    private static byte[] bytesDe(String texto) {
+        return texto.getBytes(StandardCharsets.UTF_8);
     }
 
-    private void publicar(String topico, Envelope env) {
-        pub.send(bytes(topico), ZMQ.SNDMORE);
-        pub.send(env.toByteArray(), 0);
+    private void publicar(String topico, Envelope envelope) {
+        pub.send(bytesDe(topico), ZMQ.SNDMORE);
+        pub.send(envelope.toByteArray(), 0);
     }
 
-    private Envelope pedir(String endereco, Envelope env, long timeoutMs) {
-        ZMQ.Socket s = ctx.createSocket(SocketType.REQ);
+    private Envelope pedir(String endereco, Envelope envelope, long timeoutMs) {
+        ZMQ.Socket req = contexto.createSocket(SocketType.REQ);
         try {
-            s.setLinger(0);
-            s.setSendTimeOut((int) timeoutMs);
-            s.connect(endereco);
-            if (!s.send(env.toByteArray(), 0)) {
-                System.out.println("[" + NAME + "] sem resposta de " + endereco + " em " + timeoutMs / 1000.0 + "s");
+            req.setLinger(0);
+            req.setSendTimeOut((int) timeoutMs);
+            req.connect(endereco);
+            if (!req.send(envelope.toByteArray(), 0)) {
+                System.out.println("[" + NOME + "] sem resposta de " + endereco + " em " + timeoutMs / 1000.0 + "s");
                 return null;
             }
             String destino = endereco.contains("//") ? endereco.split("//", 2)[1] : endereco;
-            msgr.show("ENVIA", env, destino, "");
+            mensageiro.exibir("ENVIA", envelope, destino, "");
             long fim = System.currentTimeMillis() + timeoutMs;
             while (true) {
-                byte[] pedidoPeer = peer.recv(ZMQ.DONTWAIT);
-                if (pedidoPeer != null) {
-                    atenderPeer(pedidoPeer);
+                byte[] pedidoPar = par.recv(ZMQ.DONTWAIT);
+                if (pedidoPar != null) {
+                    atenderPar(pedidoPar);
                 }
-                byte[] resposta = s.recv(ZMQ.DONTWAIT);
+                byte[] resposta = req.recv(ZMQ.DONTWAIT);
                 if (resposta != null) {
-                    Envelope resp = msgr.parse(resposta);
-                    msgr.show("RECEBE", resp, resp.getSender(), "");
-                    return resp;
+                    Envelope recebida = mensageiro.ler(resposta);
+                    mensageiro.exibir("RECEBE", recebida, recebida.getRemetente(), "");
+                    return recebida;
                 }
                 if (System.currentTimeMillis() >= fim) {
-                    System.out.println("[" + NAME + "] sem resposta de " + endereco + " em " + timeoutMs / 1000.0 + "s");
+                    System.out.println("[" + NOME + "] sem resposta de " + endereco + " em " + timeoutMs / 1000.0 + "s");
                     return null;
                 }
                 Util.dormir(2);
@@ -123,23 +122,23 @@ public final class Server {
         } catch (InvalidProtocolBufferException e) {
             return null;
         } catch (RuntimeException e) {
-            System.out.println("[" + NAME + "] falha ao falar com " + endereco + ": " + e.getMessage());
+            System.out.println("[" + NOME + "] falha ao falar com " + endereco + ": " + e.getMessage());
             return null;
         } finally {
-            ctx.destroySocket(s);
+            contexto.destroySocket(req);
         }
     }
 
-    private Envelope referencia(Envelope env) {
-        return pedir("tcp://" + REF_HOST + ":5559", env, TIMEOUT_REQ);
+    private Envelope referencia(Envelope envelope) {
+        return pedir("tcp://" + REF_HOST + ":5559", envelope, TIMEOUT_REQ);
     }
 
     private void registrar() {
         while (true) {
-            Envelope resp = referencia(msgr.build(Type.GET_RANK).setAddress(ADDRESS).build());
-            if (resp != null && resp.getStatus() == Status.OK) {
-                rank = resp.getRank();
-                System.out.println("[" + NAME + "] rank " + rank + ", endereço " + ADDRESS);
+            Envelope resposta = referencia(mensageiro.montar(Type.OBTER_RANK).setEndereco(ENDERECO).build());
+            if (resposta != null && resposta.getStatus() == Status.OK) {
+                rank = resposta.getRank();
+                System.out.println("[" + NOME + "] rank " + rank + ", endereço " + ENDERECO);
                 return;
             }
             Util.dormir(2000);
@@ -147,24 +146,24 @@ public final class Server {
     }
 
     private void atualizarServidores() {
-        Envelope lista = referencia(msgr.build(Type.LIST_SERVERS).build());
+        Envelope lista = referencia(mensageiro.montar(Type.LISTAR_SERVIDORES).build());
         if (lista != null && lista.getStatus() == Status.OK) {
             servidores = new LinkedHashMap<>();
             List<String> nomes = new ArrayList<>();
-            for (ServerInfo s : lista.getServersList()) {
-                servidores.put(s.getName(), s);
-                nomes.add(s.getName() + "(rank " + s.getRank() + ")");
+            for (ServerInfo s : lista.getServidoresList()) {
+                servidores.put(s.getNome(), s);
+                nomes.add(s.getNome() + "(rank " + s.getRank() + ")");
             }
-            System.out.println("[" + NAME + "] servidores disponíveis: " + String.join(", ", nomes));
+            System.out.println("[" + NOME + "] servidores disponíveis: " + String.join(", ", nomes));
         }
     }
 
-    private void heartbeat() {
-        Envelope resp = referencia(msgr.build(Type.HEARTBEAT).setAddress(ADDRESS).build());
-        if (resp == null) {
+    private void batimento() {
+        Envelope resposta = referencia(mensageiro.montar(Type.BATIMENTO).setEndereco(ENDERECO).build());
+        if (resposta == null) {
             return;
         }
-        if (resp.getStatus() != Status.OK) {
+        if (resposta.getStatus() != Status.OK) {
             registrar();
         }
         atualizarServidores();
@@ -172,7 +171,7 @@ public final class Server {
 
     private void eleicao() {
         precisaEleicao = false;
-        System.out.println("[" + NAME + "] iniciando eleição (rank " + rank + ")");
+        System.out.println("[" + NOME + "] iniciando eleição (rank " + rank + ")");
         atualizarServidores();
         List<ServerInfo> superiores = new ArrayList<>();
         for (ServerInfo s : servidores.values()) {
@@ -182,10 +181,10 @@ public final class Server {
         }
         superiores.sort(Comparator.comparingInt(ServerInfo::getRank).reversed());
         for (ServerInfo s : superiores) {
-            Envelope resp = pedir(s.getAddress(), msgr.build(Type.ELECTION).setRank(rank).build(), TIMEOUT_SERVIDOR);
-            if (resp != null && resp.getStatus() == Status.OK) {
-                System.out.println("[" + NAME + "] " + s.getName() + " (rank " + s.getRank() + ") respondeu OK: aguardando o anúncio");
-                coordinator = null;
+            Envelope resposta = pedir(s.getEndereco(), mensageiro.montar(Type.ELEICAO).setRank(rank).build(), TIMEOUT_SERVIDOR);
+            if (resposta != null && resposta.getStatus() == Status.OK) {
+                System.out.println("[" + NOME + "] " + s.getNome() + " (rank " + s.getRank() + ") respondeu OK: aguardando o anúncio");
+                coordenador = null;
                 proximaEleicao = System.currentTimeMillis() + ESPERA_ANUNCIO;
                 return;
             }
@@ -194,82 +193,82 @@ public final class Server {
     }
 
     private void virarCoordenador() {
-        coordinator = NAME;
-        Envelope anuncio = msgr.build(Type.COORDINATOR).setCoordinator(NAME).setRank(rank).build();
+        coordenador = NOME;
+        Envelope anuncio = mensageiro.montar(Type.COORDENADOR).setCoordenador(NOME).setRank(rank).build();
         publicar(TOPICO_SERVIDORES, anuncio);
-        msgr.show("ENVIA", anuncio, "#" + TOPICO_SERVIDORES, "");
-        System.out.println("[" + NAME + "] eleito coordenador");
+        mensageiro.exibir("ENVIA", anuncio, "#" + TOPICO_SERVIDORES, "");
+        System.out.println("[" + NOME + "] eleito coordenador");
     }
 
     private void sincronizarRelogio() {
-        if (coordinator == null) {
+        if (coordenador == null) {
             return;
         }
-        if (coordinator.equals(NAME)) {
-            System.out.println("[" + NAME + "] sou o coordenador: meu relógio é a referência");
+        if (coordenador.equals(NOME)) {
+            System.out.println("[" + NOME + "] sou o coordenador: meu relógio é a referência");
             return;
         }
-        ServerInfo info = servidores.get(coordinator);
+        ServerInfo info = servidores.get(coordenador);
         if (info == null) {
             atualizarServidores();
-            info = servidores.get(coordinator);
+            info = servidores.get(coordenador);
         }
-        Envelope resp = null;
+        Envelope resposta = null;
         double t0 = 0;
         double t1 = 0;
         if (info != null) {
-            t0 = relogio.raw();
-            resp = pedir(info.getAddress(), msgr.build(Type.CLOCK).build(), TIMEOUT_SERVIDOR);
-            t1 = relogio.raw();
+            t0 = relogio.bruto();
+            resposta = pedir(info.getEndereco(), mensageiro.montar(Type.RELOGIO).build(), TIMEOUT_SERVIDOR);
+            t1 = relogio.bruto();
         }
-        if (resp == null || resp.getStatus() != Status.OK) {
-            System.out.println("[" + NAME + "] coordenador " + coordinator + " indisponível: pedindo eleição");
-            coordinator = null;
+        if (resposta == null || resposta.getStatus() != Status.OK) {
+            System.out.println("[" + NOME + "] coordenador " + coordenador + " indisponível: pedindo eleição");
+            coordenador = null;
             precisaEleicao = true;
             return;
         }
-        double offset = relogio.sync(resp.getTime(), t0, t1);
-        System.out.println(String.format("[%s] relógio ajustado pelo coordenador %s: correção de %+.3fs", NAME, coordinator, offset));
+        double correcao = relogio.sincronizar(resposta.getHora(), t0, t1);
+        System.out.println(String.format("[%s] relógio ajustado pelo coordenador %s: correção de %+.3fs", NOME, coordenador, correcao));
     }
 
-    private Envelope erro(Type type, String texto) {
-        return msgr.build(type).setStatus(Status.ERROR).setError(texto).build();
+    private Envelope erro(Type tipo, String texto) {
+        return mensageiro.montar(tipo).setStatus(Status.ERRO).setErro(texto).build();
     }
 
-    private void atenderPeer(byte[] dados) {
-        Envelope env;
+    private void atenderPar(byte[] dados) {
+        Envelope envelope;
         try {
-            env = msgr.parse(dados);
+            envelope = mensageiro.ler(dados);
         } catch (InvalidProtocolBufferException e) {
-            peer.send(erro(Type.UNKNOWN, "mensagem inválida").toByteArray(), 0);
+            par.send(erro(Type.DESCONHECIDO, "mensagem inválida").toByteArray(), 0);
             return;
         }
-        msgr.show("RECEBE", env, env.getSender(), "");
-        Envelope resp;
-        switch (env.getType()) {
-            case ELECTION:
-                resp = msgr.build(env.getType()).setStatus(Status.OK).setRank(rank).build();
+        mensageiro.exibir("RECEBE", envelope, envelope.getRemetente(), "");
+        Envelope resposta;
+        switch (envelope.getTipo()) {
+            case ELEICAO:
+                resposta = mensageiro.montar(envelope.getTipo()).setStatus(Status.OK).setRank(rank).build();
                 precisaEleicao = true;
                 break;
-            case SYNC:
-                Envelope.Builder b = msgr.build(env.getType()).setStatus(Status.OK);
-                for (Entry e : store.entries) {
-                    b.addEntries(e.toProto());
+            case SINCRONIZAR:
+                Envelope.Builder b = mensageiro.montar(envelope.getTipo()).setStatus(Status.OK);
+                for (Entry e : armazenamento.entradas) {
+                    b.addEntradas(e.paraProto());
                 }
-                resp = b.build();
+                resposta = b.build();
                 break;
-            case CLOCK:
-                if (NAME.equals(coordinator)) {
-                    resp = msgr.build(env.getType()).setStatus(Status.OK).setTime(relogio.now()).build();
+            case RELOGIO:
+                if (NOME.equals(coordenador)) {
+                    resposta = mensageiro.montar(envelope.getTipo()).setStatus(Status.OK).setHora(relogio.agora()).build();
                 } else {
-                    resp = erro(env.getType(), "este servidor não é o coordenador");
+                    resposta = erro(envelope.getTipo(), "este servidor não é o coordenador");
                 }
                 break;
             default:
-                resp = erro(env.getType(), "tipo de mensagem desconhecido");
+                resposta = erro(envelope.getTipo(), "tipo de mensagem desconhecido");
         }
-        peer.send(resp.toByteArray(), 0);
-        msgr.show("ENVIA", resp, env.getSender(), "");
+        par.send(resposta.toByteArray(), 0);
+        mensageiro.exibir("ENVIA", resposta, envelope.getRemetente(), "");
     }
 
     private void receberDoSub(byte[] topicoBytes) {
@@ -284,60 +283,60 @@ public final class Server {
         if (!topico.equals(TOPICO_SERVIDORES) && !topico.equals(TOPICO_REPLICA)) {
             return;
         }
-        Envelope env;
+        Envelope envelope;
         try {
-            env = msgr.parse(dados);
+            envelope = mensageiro.ler(dados);
         } catch (InvalidProtocolBufferException e) {
             return;
         }
-        if (env.getSender().equals(NAME)) {
+        if (envelope.getRemetente().equals(NOME)) {
             return;
         }
-        msgr.show("RECEBE", env, "#" + topico, "");
+        mensageiro.exibir("RECEBE", envelope, "#" + topico, "");
         if (topico.equals(TOPICO_REPLICA)) {
-            aplicarEntradas(env.getEntriesList(), env.getSender());
+            aplicarEntradas(envelope.getEntradasList(), envelope.getRemetente());
             return;
         }
-        coordinator = env.getCoordinator();
-        System.out.println("[" + NAME + "] coordenador agora é " + coordinator);
-        if (rank != 0 && env.getRank() < rank) {
+        coordenador = envelope.getCoordenador();
+        System.out.println("[" + NOME + "] coordenador agora é " + coordenador);
+        if (rank != 0 && envelope.getRank() < rank) {
             precisaEleicao = true;
         }
     }
 
     private void gravar(Entry entrada) {
-        if (store.add(entrada)) {
+        if (armazenamento.adicionar(entrada)) {
             replicar(List.of(entrada));
         }
     }
 
     private void replicar(List<Entry> entradas) {
-        Envelope.Builder b = msgr.build(Type.REPLICATE);
+        Envelope.Builder b = mensageiro.montar(Type.REPLICAR);
         for (Entry e : entradas) {
-            b.addEntries(e.toProto());
+            b.addEntradas(e.paraProto());
         }
-        Envelope msg = b.build();
-        publicar(TOPICO_REPLICA, msg);
-        msgr.show("ENVIA", msg, "#" + TOPICO_REPLICA, "");
+        Envelope mensagem = b.build();
+        publicar(TOPICO_REPLICA, mensagem);
+        mensageiro.exibir("ENVIA", mensagem, "#" + TOPICO_REPLICA, "");
     }
 
     private int aplicarEntradas(List<LogEntry> entradas, String origem) {
         int novas = 0;
         for (LogEntry le : entradas) {
-            if (store.add(Entry.fromProto(le))) {
+            if (armazenamento.adicionar(Entry.deProto(le))) {
                 novas++;
             }
         }
         if (novas > 0) {
-            System.out.println("[" + NAME + "] replicação: " + novas + " entrada(s) nova(s) recebida(s) de " + origem);
+            System.out.println("[" + NOME + "] replicação: " + novas + " entrada(s) nova(s) recebida(s) de " + origem);
         }
         return novas;
     }
 
     private void puxarDe(ServerInfo info) {
-        Envelope resp = pedir(info.getAddress(), msgr.build(Type.SYNC).build(), TIMEOUT_SYNC);
-        if (resp != null && resp.getStatus() == Status.OK) {
-            aplicarEntradas(resp.getEntriesList(), info.getName());
+        Envelope resposta = pedir(info.getEndereco(), mensageiro.montar(Type.SINCRONIZAR).build(), TIMEOUT_SYNC);
+        if (resposta != null && resposta.getStatus() == Status.OK) {
+            aplicarEntradas(resposta.getEntradasList(), info.getNome());
         }
     }
 
@@ -346,111 +345,97 @@ public final class Server {
         atualizarServidores();
         List<ServerInfo> outros = new ArrayList<>();
         for (ServerInfo s : servidores.values()) {
-            if (!s.getName().equals(NAME)) {
+            if (!s.getNome().equals(NOME)) {
                 outros.add(s);
             }
         }
         if (!todos && !outros.isEmpty()) {
-            outros = List.of(outros.get(random.nextInt(outros.size())));
+            outros = List.of(outros.get(sorteio.nextInt(outros.size())));
         }
         for (ServerInfo info : outros) {
             puxarDe(info);
         }
     }
 
-    private Entry evento(String kind, String user, String channel, String text) {
-        return store.newEntry(kind, relogio.now(), msgr.clock, user, channel, text);
+    private Entry evento(String tipo, String usuario, String canal, String texto) {
+        return armazenamento.novaEntrada(tipo, relogio.agora(), mensageiro.relogio, usuario, canal, texto);
     }
 
-    private Envelope tratar(Envelope env) {
-        switch (env.getType()) {
+    private Envelope tratar(Envelope envelope) {
+        switch (envelope.getTipo()) {
             case LOGIN: {
-                if (!Util.nomeValido(env.getUser())) {
-                    return erro(env.getType(), "nome de usuário inválido (use 1 a 32 letras, números, _ ou -)");
+                if (!Util.nomeValido(envelope.getUsuario())) {
+                    return erro(envelope.getTipo(), "nome de usuário inválido (use 1 a 32 letras, números, _ ou -)");
                 }
-                gravar(evento("login", env.getUser(), "", ""));
-                return msgr.build(env.getType()).setStatus(Status.OK).setUser(env.getUser()).build();
+                gravar(evento("login", envelope.getUsuario(), "", ""));
+                return mensageiro.montar(envelope.getTipo()).setStatus(Status.OK).setUsuario(envelope.getUsuario()).build();
             }
-            case CREATE_CHANNEL: {
-                if (!Util.nomeValido(env.getChannel())) {
-                    return erro(env.getType(), "nome de canal inválido (use 1 a 32 letras, números, _ ou -)");
+            case CRIAR_CANAL: {
+                if (!Util.nomeValido(envelope.getCanal())) {
+                    return erro(envelope.getTipo(), "nome de canal inválido (use 1 a 32 letras, números, _ ou -)");
                 }
-                if (RESERVADOS.contains(env.getChannel())) {
-                    return erro(env.getType(), "'" + env.getChannel() + "' é um nome reservado");
+                if (RESERVADOS.contains(envelope.getCanal())) {
+                    return erro(envelope.getTipo(), "'" + envelope.getCanal() + "' é um nome reservado");
                 }
-                if (store.hasChannel(env.getChannel())) {
-                    return erro(env.getType(), "o canal '" + env.getChannel() + "' já existe");
+                if (armazenamento.temCanal(envelope.getCanal())) {
+                    return erro(envelope.getTipo(), "o canal '" + envelope.getCanal() + "' já existe");
                 }
-                gravar(evento("channel", env.getSender(), env.getChannel(), ""));
-                return msgr.build(env.getType()).setStatus(Status.OK).setChannel(env.getChannel()).build();
+                gravar(evento("channel", envelope.getRemetente(), envelope.getCanal(), ""));
+                return mensageiro.montar(envelope.getTipo()).setStatus(Status.OK).setCanal(envelope.getCanal()).build();
             }
-            case PUBLISH: {
-                if (!Util.nomeValido(env.getChannel())) {
-                    return erro(env.getType(), "nome de canal inválido");
+            case PUBLICAR: {
+                if (!Util.nomeValido(envelope.getCanal())) {
+                    return erro(envelope.getTipo(), "nome de canal inválido");
                 }
-                if (RESERVADOS.contains(env.getChannel())) {
-                    return erro(env.getType(), "'" + env.getChannel() + "' é um nome reservado");
+                if (RESERVADOS.contains(envelope.getCanal())) {
+                    return erro(envelope.getTipo(), "'" + envelope.getCanal() + "' é um nome reservado");
                 }
-                if (env.getText().isEmpty()) {
-                    return erro(env.getType(), "mensagem vazia");
+                if (envelope.getTexto().isEmpty()) {
+                    return erro(envelope.getTipo(), "mensagem vazia");
                 }
-                Envelope publicacao = msgr.build(Type.PUBLICATION)
-                        .setUser(env.getSender())
-                        .setChannel(env.getChannel())
-                        .setText(env.getText())
+                Envelope publicacao = mensageiro.montar(Type.PUBLICACAO)
+                        .setUsuario(envelope.getRemetente())
+                        .setCanal(envelope.getCanal())
+                        .setTexto(envelope.getTexto())
                         .build();
-                gravar(store.newEntry("message", publicacao.getTimestamp(), publicacao.getClock(),
-                        env.getSender(), env.getChannel(), env.getText()));
-                publicar(env.getChannel(), publicacao);
-                msgr.show("ENVIA", publicacao, "#" + env.getChannel(), "");
-                return msgr.build(env.getType()).setStatus(Status.OK).setChannel(env.getChannel()).build();
+                gravar(armazenamento.novaEntrada("message", publicacao.getInstante(), publicacao.getRelogio(),
+                        envelope.getRemetente(), envelope.getCanal(), envelope.getTexto()));
+                publicar(envelope.getCanal(), publicacao);
+                mensageiro.exibir("ENVIA", publicacao, "#" + envelope.getCanal(), "");
+                return mensageiro.montar(envelope.getTipo()).setStatus(Status.OK).setCanal(envelope.getCanal()).build();
             }
-            case LIST_CHANNELS:
-                return msgr.build(env.getType()).setStatus(Status.OK).addAllChannels(store.channelNames()).build();
-            case HISTORY: {
-                if (!Util.nomeValido(env.getChannel())) {
-                    return erro(env.getType(), "nome de canal inválido");
-                }
-                List<Entry> msgs = store.messages(env.getChannel());
-                Envelope.Builder b = msgr.build(env.getType())
-                        .setStatus(Status.OK)
-                        .setChannel(env.getChannel())
-                        .setTotal(msgs.size());
-                for (Entry e : msgs.subList(Math.max(0, msgs.size() - HISTORICO), msgs.size())) {
-                    b.addEntries(e.toProto());
-                }
-                return b.build();
-            }
+            case LISTAR_CANAIS:
+                return mensageiro.montar(envelope.getTipo()).setStatus(Status.OK).addAllCanais(armazenamento.nomesCanais()).build();
             default:
-                return erro(env.getType(), "tipo de mensagem desconhecido");
+                return erro(envelope.getTipo(), "tipo de mensagem desconhecido");
         }
     }
 
     private void atenderCliente(byte[] dados) {
-        Envelope env;
+        Envelope envelope;
         try {
-            env = msgr.parse(dados);
+            envelope = mensageiro.ler(dados);
         } catch (InvalidProtocolBufferException e) {
-            Envelope resp = erro(Type.UNKNOWN, "mensagem inválida (não é um Envelope Protobuf)");
-            rep.send(resp.toByteArray(), 0);
-            msgr.show("ENVIA", resp, "", "");
+            Envelope resposta = erro(Type.DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)");
+            rep.send(resposta.toByteArray(), 0);
+            mensageiro.exibir("ENVIA", resposta, "", "");
             return;
         }
-        msgr.show("RECEBE", env, env.getSender(), "");
-        Envelope resp = tratar(env);
-        rep.send(resp.toByteArray(), 0);
-        msgr.show("ENVIA", resp, env.getSender(), "");
-        nMsgs++;
-        if (nMsgs % HEARTBEAT_A_CADA == 0) {
-            heartbeat();
+        mensageiro.exibir("RECEBE", envelope, envelope.getRemetente(), "");
+        Envelope resposta = tratar(envelope);
+        rep.send(resposta.toByteArray(), 0);
+        mensageiro.exibir("ENVIA", resposta, envelope.getRemetente(), "");
+        mensagensRecebidas++;
+        if (mensagensRecebidas % HEARTBEAT_A_CADA == 0) {
+            batimento();
         }
-        if (nMsgs % SINCRONIZA_A_CADA == 0) {
+        if (mensagensRecebidas % SINCRONIZA_A_CADA == 0) {
             sincronizarRelogio();
         }
     }
 
-    private void run() {
-        System.out.println("[" + NAME + "] iniciado. " + store.channelNames().size() + " canais carregados de " + store.path);
+    private void executar() {
+        System.out.println("[" + NOME + "] iniciado. " + armazenamento.nomesCanais().size() + " canais carregados de " + armazenamento.caminho);
         registrar();
         antiEntropia(true);
         while (true) {
@@ -460,9 +445,9 @@ public final class Server {
                 atenderCliente(pedidoCliente);
                 ativo = true;
             }
-            byte[] pedidoPeer = peer.recv(ZMQ.DONTWAIT);
-            if (pedidoPeer != null) {
-                atenderPeer(pedidoPeer);
+            byte[] pedidoPar = par.recv(ZMQ.DONTWAIT);
+            if (pedidoPar != null) {
+                atenderPar(pedidoPar);
                 ativo = true;
             }
             byte[] publicado = sub.recv(ZMQ.DONTWAIT);
@@ -476,13 +461,13 @@ public final class Server {
             if (System.currentTimeMillis() >= proximaSync) {
                 antiEntropia(false);
             }
-            if (precisaEleicao || (coordinator == null && System.currentTimeMillis() >= proximaEleicao)) {
+            if (precisaEleicao || (coordenador == null && System.currentTimeMillis() >= proximaEleicao)) {
                 eleicao();
             }
         }
     }
 
     public static void main(String[] args) {
-        new Server().run();
+        new Server().executar();
     }
 }

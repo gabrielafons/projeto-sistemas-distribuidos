@@ -1,7 +1,6 @@
 package bbs;
 
 import bbs.ChatProto.Envelope;
-import bbs.ChatProto.LogEntry;
 import bbs.ChatProto.Status;
 import bbs.ChatProto.Type;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -17,8 +16,8 @@ import java.util.Random;
 import java.util.Set;
 
 public final class Client {
-    static final String BROKER_HOST = Util.env("BROKER_HOST", "broker");
-    static final String PROXY_HOST = Util.env("PROXY_HOST", "proxy");
+    static final String BROKER_HOST = Util.variavel("BROKER_HOST", "broker");
+    static final String PROXY_HOST = Util.variavel("PROXY_HOST", "proxy");
     static final int TIMEOUT_MS = 5000;
 
     static final String[] FRASES = {
@@ -27,52 +26,52 @@ public final class Client {
         "o que vocês acham?"
     };
 
-    private final Random random = new Random();
-    private final ZContext ctx = new ZContext();
-    private final Messenger msgr;
+    private final Random sorteio = new Random();
+    private final ZContext contexto = new ZContext();
+    private final Messenger mensageiro;
     private final ZMQ.Socket sub;
     private final Set<String> inscritos = new LinkedHashSet<>();
     private ZMQ.Socket req;
-    private String name;
+    private String nome;
 
     Client() {
         String bot = System.getenv("BOT_NAME");
-        name = bot != null && !bot.isEmpty() ? bot : nomeAleatorio();
-        msgr = new Messenger(name, new PhysicalClock(0));
+        nome = bot != null && !bot.isEmpty() ? bot : nomeAleatorio();
+        mensageiro = new Messenger(nome, new PhysicalClock(0));
         conectar();
-        sub = ctx.createSocket(SocketType.SUB);
+        sub = contexto.createSocket(SocketType.SUB);
         sub.connect("tcp://" + PROXY_HOST + ":5558");
     }
 
     private String nomeAleatorio() {
-        return "java-bot-" + (1000 + random.nextInt(9000));
+        return "java-bot-" + (1000 + sorteio.nextInt(9000));
     }
 
     private void conectar() {
         if (req != null) {
             req.setLinger(0);
-            ctx.destroySocket(req);
+            contexto.destroySocket(req);
         }
-        req = ctx.createSocket(SocketType.REQ);
+        req = contexto.createSocket(SocketType.REQ);
         req.setReceiveTimeOut(TIMEOUT_MS);
         req.connect("tcp://" + BROKER_HOST + ":5555");
     }
 
-    private Envelope requisitar(Envelope env) {
+    private Envelope requisitar(Envelope envelope) {
         while (true) {
-            req.send(env.toByteArray(), 0);
-            msgr.show("ENVIA", env, "servidor", "");
+            req.send(envelope.toByteArray(), 0);
+            mensageiro.exibir("ENVIA", envelope, "servidor", "");
             byte[] dados = req.recv(0);
             if (dados != null) {
                 try {
-                    Envelope resp = msgr.parse(dados);
-                    msgr.show("RECEBE", resp, resp.getSender(), "");
-                    return resp;
+                    Envelope resposta = mensageiro.ler(dados);
+                    mensageiro.exibir("RECEBE", resposta, resposta.getRemetente(), "");
+                    return resposta;
                 } catch (InvalidProtocolBufferException e) {
-                    System.out.println("[" + name + "] resposta inválida, tentando de novo");
+                    System.out.println("[" + nome + "] resposta inválida, tentando de novo");
                 }
             } else {
-                System.out.println("[" + name + "] sem resposta em " + TIMEOUT_MS + " ms, tentando de novo");
+                System.out.println("[" + nome + "] sem resposta em " + TIMEOUT_MS + " ms, tentando de novo");
             }
             conectar();
         }
@@ -80,49 +79,35 @@ public final class Client {
 
     private void login() {
         while (true) {
-            Envelope resp = requisitar(msgr.build(Type.LOGIN).setUser(name).build());
-            if (resp.getStatus() == Status.OK) {
+            Envelope resposta = requisitar(mensageiro.montar(Type.LOGIN).setUsuario(nome).build());
+            if (resposta.getStatus() == Status.OK) {
                 return;
             }
             Util.dormir(1000);
-            name = nomeAleatorio();
-            msgr.name = name;
+            nome = nomeAleatorio();
+            mensageiro.nome = nome;
         }
     }
 
     private List<String> listarCanais() {
-        Envelope resp = requisitar(msgr.build(Type.LIST_CHANNELS).build());
-        return resp.getStatus() == Status.OK ? new ArrayList<>(resp.getChannelsList()) : new ArrayList<>();
+        Envelope resposta = requisitar(mensageiro.montar(Type.LISTAR_CANAIS).build());
+        return resposta.getStatus() == Status.OK ? new ArrayList<>(resposta.getCanaisList()) : new ArrayList<>();
     }
 
-    private boolean criarCanal(String nome) {
-        Envelope resp = requisitar(msgr.build(Type.CREATE_CHANNEL).setChannel(nome).build());
-        return resp.getStatus() == Status.OK;
+    private boolean criarCanal(String nomeCanal) {
+        Envelope resposta = requisitar(mensageiro.montar(Type.CRIAR_CANAL).setCanal(nomeCanal).build());
+        return resposta.getStatus() == Status.OK;
     }
 
     private void inscrever(String canal) {
         sub.subscribe(canal.getBytes(StandardCharsets.UTF_8));
         inscritos.add(canal);
-        System.out.println("[" + name + "] inscrito no canal #" + canal + " (" + inscritos.size() + " inscrições)");
+        System.out.println("[" + nome + "] inscrito no canal #" + canal + " (" + inscritos.size() + " inscrições)");
     }
 
     private boolean publicar(String canal, String texto) {
-        Envelope resp = requisitar(msgr.build(Type.PUBLISH).setChannel(canal).setText(texto).build());
-        return resp.getStatus() == Status.OK;
-    }
-
-    private void historico(String canal) {
-        Envelope resp = requisitar(msgr.build(Type.HISTORY).setChannel(canal).build());
-        if (resp.getStatus() != Status.OK) {
-            return;
-        }
-        System.out.println("[" + name + "] histórico de #" + canal + ": " + resp.getTotal()
-                + " mensagens no total (respondido por " + resp.getSender() + "); últimas "
-                + resp.getEntriesCount() + ":");
-        for (LogEntry e : resp.getEntriesList()) {
-            System.out.println("    [L=" + e.getClock() + "] " + e.getUser() + ": " + e.getText()
-                    + "  (recebida por " + e.getOrigin() + ")");
-        }
+        Envelope resposta = requisitar(mensageiro.montar(Type.PUBLICAR).setCanal(canal).setTexto(texto).build());
+        return resposta.getStatus() == Status.OK;
     }
 
     private void receber(byte[] topicoBytes) {
@@ -138,10 +123,10 @@ public final class Client {
             return;
         }
         try {
-            Envelope env = msgr.parse(dados);
-            msgr.show("RECEBE", env, "#" + canal, "  | recebida em " + Util.hora());
+            Envelope envelope = mensageiro.ler(dados);
+            mensageiro.exibir("RECEBE", envelope, "#" + canal, "  | recebida em " + Util.hora());
         } catch (InvalidProtocolBufferException e) {
-            System.out.println("[" + name + "] publicação inválida ignorada");
+            System.out.println("[" + nome + "] publicação inválida ignorada");
         }
     }
 
@@ -161,12 +146,12 @@ public final class Client {
         }
     }
 
-    private void run() {
+    private void executar() {
         login();
         while (true) {
             List<String> canais = listarCanais();
             if (canais.size() < 5) {
-                criarCanal("canal-" + (1000 + random.nextInt(9000)));
+                criarCanal("canal-" + (1000 + sorteio.nextInt(9000)));
                 canais = listarCanais();
             }
             if (inscritos.size() < 3) {
@@ -177,16 +162,15 @@ public final class Client {
                     }
                 }
                 if (!disponiveis.isEmpty()) {
-                    inscrever(disponiveis.get(random.nextInt(disponiveis.size())));
+                    inscrever(disponiveis.get(sorteio.nextInt(disponiveis.size())));
                 }
             }
             if (!canais.isEmpty()) {
-                String canal = canais.get(random.nextInt(canais.size()));
+                String canal = canais.get(sorteio.nextInt(canais.size()));
                 for (int i = 0; i < 10; i++) {
-                    publicar(canal, FRASES[random.nextInt(FRASES.length)]);
+                    publicar(canal, FRASES[sorteio.nextInt(FRASES.length)]);
                     esperar(1000);
                 }
-                historico(canal);
             } else {
                 esperar(1000);
             }
@@ -194,6 +178,6 @@ public final class Client {
     }
 
     public static void main(String[] args) {
-        new Client().run();
+        new Client().executar();
     }
 }

@@ -1,9 +1,3 @@
-"""Broker do Request-Reply (ROUTER/DEALER).
-
-Clientes (REQ) conectam na porta 5555 (ROUTER) e servidores (REP) conectam
-na porta 5556 (DEALER). O DEALER distribui as requisições entre os servidores
-conectados em round-robin (balanceamento de carga).
-"""
 import zmq
 
 ctx = zmq.Context()

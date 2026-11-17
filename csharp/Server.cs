@@ -11,39 +11,38 @@ namespace Bbs
 {
     internal sealed class Server
     {
-        private static readonly string Nome = Util.Env("SERVER_NAME", "viuva-negra-csharp-1");
-        private static readonly string BrokerHost = Util.Env("BROKER_HOST", "broker");
-        private static readonly string ProxyHost = Util.Env("PROXY_HOST", "proxy");
-        private static readonly string RefHost = Util.Env("REF_HOST", "reference");
-        private static readonly string DataDir = Util.Env("DATA_DIR", "/data");
-        private static readonly string PeerPort = Util.Env("PEER_PORT", "6000");
-        private static readonly string Endereco = Util.Env("ADVERTISE_ADDR", "tcp://" + Nome + ":" + PeerPort);
-        private static readonly double ClockSkew = double.Parse(Util.Env("CLOCK_SKEW", "0"), CultureInfo.InvariantCulture);
+        private static readonly string Nome = Util.Variavel("SERVER_NAME", "viuva-negra-csharp-1");
+        private static readonly string HostBroker = Util.Variavel("BROKER_HOST", "broker");
+        private static readonly string HostProxy = Util.Variavel("PROXY_HOST", "proxy");
+        private static readonly string HostReferencia = Util.Variavel("REF_HOST", "reference");
+        private static readonly string DiretorioDados = Util.Variavel("DATA_DIR", "/data");
+        private static readonly string PortaPar = Util.Variavel("PEER_PORT", "6000");
+        private static readonly string Endereco = Util.Variavel("ADVERTISE_ADDR", "tcp://" + Nome + ":" + PortaPar);
+        private static readonly double DesvioRelogio = double.Parse(Util.Variavel("CLOCK_SKEW", "0"), CultureInfo.InvariantCulture);
 
-        private const int HeartbeatACadaN = 10;
+        private const int BatimentoACadaN = 10;
         private const int SincronizaACadaN = 15;
-        private const int TimeoutReq = 2000;
-        private const int TimeoutServidor = 1000;
+        private const int TempoLimiteReq = 2000;
+        private const int TempoLimiteServidor = 1000;
         private const int EsperaAnuncio = 5000;
         private const int AntiEntropiaMs = 20000;
-        private const int TimeoutSync = 3000;
-        private const int Historico = 10;
+        private const int TempoLimiteSync = 3000;
 
         private const string TopicoServidores = "servers";
         private const string TopicoReplica = "replica";
 
         private readonly PhysicalClock relogio;
-        private readonly Messenger msgr;
-        private readonly Store store;
+        private readonly Messenger mensageiro;
+        private readonly Store armazenamento;
         private readonly ResponseSocket rep = new ResponseSocket();
-        private readonly ResponseSocket peer = new ResponseSocket();
+        private readonly ResponseSocket par = new ResponseSocket();
         private readonly PublisherSocket pub = new PublisherSocket();
         private readonly SubscriberSocket sub = new SubscriberSocket();
-        private readonly Random random = new Random();
+        private readonly Random sorteio = new Random();
 
         private int rank = 0;
-        private long nMsgs = 0;
-        private string coordinator = null;
+        private long mensagensRecebidas = 0;
+        private string coordenador = null;
         private Dictionary<string, ServerInfo> servidores = new Dictionary<string, ServerInfo>();
         private bool precisaEleicao = false;
         private long proximaEleicao = 0;
@@ -51,14 +50,14 @@ namespace Bbs
 
         public Server()
         {
-            relogio = new PhysicalClock(ClockSkew);
-            msgr = new Messenger(Nome, relogio);
-            store = new Store(DataDir, Nome);
+            relogio = new PhysicalClock(DesvioRelogio);
+            mensageiro = new Messenger(Nome, relogio);
+            armazenamento = new Store(DiretorioDados, Nome);
 
-            rep.Connect("tcp://" + BrokerHost + ":5556");
-            peer.Bind("tcp://*:" + PeerPort);
-            pub.Connect("tcp://" + ProxyHost + ":5557");
-            sub.Connect("tcp://" + ProxyHost + ":5558");
+            rep.Connect("tcp://" + HostBroker + ":5556");
+            par.Bind("tcp://*:" + PortaPar);
+            pub.Connect("tcp://" + HostProxy + ":5557");
+            sub.Connect("tcp://" + HostProxy + ":5558");
             sub.Subscribe(TopicoServidores);
             sub.Subscribe(TopicoReplica);
         }
@@ -68,9 +67,9 @@ namespace Bbs
             return nome == TopicoServidores || nome == TopicoReplica;
         }
 
-        public void Run()
+        public void Executar()
         {
-            Console.WriteLine($"[{Nome}] iniciado. {store.ChannelNames().Count} canais carregados de {store.Path}");
+            Console.WriteLine($"[{Nome}] iniciado. {armazenamento.NomesCanais().Count} canais carregados de {armazenamento.Caminho}");
             Registrar();
             AntiEntropia(true);
             while (true)
@@ -81,9 +80,9 @@ namespace Bbs
                     AtenderCliente(pedidoCliente);
                     ativo = true;
                 }
-                if (peer.TryReceiveFrameBytes(out byte[] pedidoPeer))
+                if (par.TryReceiveFrameBytes(out byte[] pedidoPar))
                 {
-                    AtenderPeer(pedidoPeer);
+                    AtenderPar(pedidoPar);
                     ativo = true;
                 }
                 if (sub.TryReceiveFrameBytes(out byte[] topico, out bool mais))
@@ -99,52 +98,52 @@ namespace Bbs
                 {
                     AntiEntropia(false);
                 }
-                if (precisaEleicao || (coordinator == null && Util.AgoraMs() >= proximaEleicao))
+                if (precisaEleicao || (coordenador == null && Util.AgoraMs() >= proximaEleicao))
                 {
                     Eleicao();
                 }
             }
         }
 
-        private void Publicar(string topico, Envelope env)
+        private void Publicar(string topico, Envelope envelope)
         {
-            pub.SendMoreFrame(topico).SendFrame(env.ToByteArray());
+            pub.SendMoreFrame(topico).SendFrame(envelope.ToByteArray());
         }
 
-        private Envelope Pedir(string endereco, Envelope env, int timeoutMs)
+        private Envelope Pedir(string endereco, Envelope envelope, int tempoLimiteMs)
         {
-            RequestSocket s = null;
+            RequestSocket req = null;
             try
             {
-                s = new RequestSocket();
-                s.Options.Linger = TimeSpan.Zero;
-                s.Connect(endereco);
-                if (!s.TrySendFrame(TimeSpan.FromMilliseconds(timeoutMs), env.ToByteArray()))
+                req = new RequestSocket();
+                req.Options.Linger = TimeSpan.Zero;
+                req.Connect(endereco);
+                if (!req.TrySendFrame(TimeSpan.FromMilliseconds(tempoLimiteMs), envelope.ToByteArray()))
                 {
-                    SemResposta(endereco, timeoutMs);
+                    SemResposta(endereco, tempoLimiteMs);
                     return null;
                 }
                 int pos = endereco.IndexOf("//", StringComparison.Ordinal);
-                msgr.Show("ENVIA", env, pos < 0 ? endereco : endereco.Substring(pos + 2));
-                long fim = Util.AgoraMs() + timeoutMs;
+                mensageiro.Exibir("ENVIA", envelope, pos < 0 ? endereco : endereco.Substring(pos + 2));
+                long fim = Util.AgoraMs() + tempoLimiteMs;
                 while (true)
                 {
-                    if (peer.TryReceiveFrameBytes(out byte[] pedidoPeer))
+                    if (par.TryReceiveFrameBytes(out byte[] pedidoPar))
                     {
-                        AtenderPeer(pedidoPeer);
+                        AtenderPar(pedidoPar);
                     }
-                    if (s.TryReceiveFrameBytes(out byte[] resposta))
+                    if (req.TryReceiveFrameBytes(out byte[] resposta))
                     {
-                        if (!msgr.TryParse(resposta, out Envelope resp))
+                        if (!mensageiro.TentarLer(resposta, out Envelope recebida))
                         {
                             return null;
                         }
-                        msgr.Show("RECEBE", resp, resp.Sender);
-                        return resp;
+                        mensageiro.Exibir("RECEBE", recebida, recebida.Remetente);
+                        return recebida;
                     }
                     if (Util.AgoraMs() >= fim)
                     {
-                        SemResposta(endereco, timeoutMs);
+                        SemResposta(endereco, tempoLimiteMs);
                         return null;
                     }
                     Util.Dormir(2);
@@ -157,30 +156,30 @@ namespace Bbs
             }
             finally
             {
-                s?.Dispose();
+                req?.Dispose();
             }
         }
 
-        private static void SemResposta(string endereco, int timeoutMs)
+        private static void SemResposta(string endereco, int tempoLimiteMs)
         {
-            Console.WriteLine($"[{Nome}] sem resposta de {endereco} em {(timeoutMs / 1000.0).ToString(CultureInfo.InvariantCulture)}s");
+            Console.WriteLine($"[{Nome}] sem resposta de {endereco} em {(tempoLimiteMs / 1000.0).ToString(CultureInfo.InvariantCulture)}s");
         }
 
-        private Envelope Referencia(Envelope env)
+        private Envelope Referencia(Envelope envelope)
         {
-            return Pedir("tcp://" + RefHost + ":5559", env, TimeoutReq);
+            return Pedir("tcp://" + HostReferencia + ":5559", envelope, TempoLimiteReq);
         }
 
         private void Registrar()
         {
             while (true)
             {
-                Envelope req = msgr.Build(Type.GetRank);
-                req.Address = Endereco;
-                Envelope resp = Referencia(req);
-                if (resp != null && resp.Status == Status.Ok)
+                Envelope requisicao = mensageiro.Montar(Type.ObterRank);
+                requisicao.Endereco = Endereco;
+                Envelope resposta = Referencia(requisicao);
+                if (resposta != null && resposta.Status == Status.Ok)
                 {
-                    rank = resp.Rank;
+                    rank = resposta.Rank;
                     Console.WriteLine($"[{Nome}] rank {rank}, endereço {Endereco}");
                     return;
                 }
@@ -190,25 +189,25 @@ namespace Bbs
 
         private void AtualizarServidores()
         {
-            Envelope lista = Referencia(msgr.Build(Type.ListServers));
+            Envelope lista = Referencia(mensageiro.Montar(Type.ListarServidores));
             if (lista != null && lista.Status == Status.Ok)
             {
-                servidores = lista.Servers.ToDictionary(s => s.Name, s => s);
-                string nomes = string.Join(", ", lista.Servers.Select(s => $"{s.Name}(rank {s.Rank})"));
+                servidores = lista.Servidores.ToDictionary(s => s.Nome, s => s);
+                string nomes = string.Join(", ", lista.Servidores.Select(s => $"{s.Nome}(rank {s.Rank})"));
                 Console.WriteLine($"[{Nome}] servidores disponíveis: {nomes}");
             }
         }
 
-        private void Heartbeat()
+        private void Batimento()
         {
-            Envelope req = msgr.Build(Type.Heartbeat);
-            req.Address = Endereco;
-            Envelope resp = Referencia(req);
-            if (resp == null)
+            Envelope requisicao = mensageiro.Montar(Type.Batimento);
+            requisicao.Endereco = Endereco;
+            Envelope resposta = Referencia(requisicao);
+            if (resposta == null)
             {
                 return;
             }
-            if (resp.Status != Status.Ok)
+            if (resposta.Status != Status.Ok)
             {
                 Registrar();
             }
@@ -223,13 +222,13 @@ namespace Bbs
             List<ServerInfo> superiores = servidores.Values.Where(s => s.Rank > rank).OrderByDescending(s => s.Rank).ToList();
             foreach (ServerInfo s in superiores)
             {
-                Envelope req = msgr.Build(Type.Election);
-                req.Rank = rank;
-                Envelope resp = Pedir(s.Address, req, TimeoutServidor);
-                if (resp != null && resp.Status == Status.Ok)
+                Envelope requisicao = mensageiro.Montar(Type.Eleicao);
+                requisicao.Rank = rank;
+                Envelope resposta = Pedir(s.Endereco, requisicao, TempoLimiteServidor);
+                if (resposta != null && resposta.Status == Status.Ok)
                 {
-                    Console.WriteLine($"[{Nome}] {s.Name} (rank {s.Rank}) respondeu OK: aguardando o anúncio");
-                    coordinator = null;
+                    Console.WriteLine($"[{Nome}] {s.Nome} (rank {s.Rank}) respondeu OK: aguardando o anúncio");
+                    coordenador = null;
                     proximaEleicao = Util.AgoraMs() + EsperaAnuncio;
                     return;
                 }
@@ -239,101 +238,101 @@ namespace Bbs
 
         private void VirarCoordenador()
         {
-            coordinator = Nome;
-            Envelope anuncio = msgr.Build(Type.Coordinator);
-            anuncio.Coordinator = Nome;
+            coordenador = Nome;
+            Envelope anuncio = mensageiro.Montar(Type.Coordenador);
+            anuncio.Coordenador = Nome;
             anuncio.Rank = rank;
             Publicar(TopicoServidores, anuncio);
-            msgr.Show("ENVIA", anuncio, "#" + TopicoServidores);
+            mensageiro.Exibir("ENVIA", anuncio, "#" + TopicoServidores);
             Console.WriteLine($"[{Nome}] eleito coordenador");
         }
 
         private void SincronizarRelogio()
         {
-            if (coordinator == null)
+            if (coordenador == null)
             {
                 return;
             }
-            if (coordinator == Nome)
+            if (coordenador == Nome)
             {
                 Console.WriteLine($"[{Nome}] sou o coordenador: meu relógio é a referência");
                 return;
             }
-            if (!servidores.ContainsKey(coordinator))
+            if (!servidores.ContainsKey(coordenador))
             {
                 AtualizarServidores();
             }
-            Envelope resp = null;
+            Envelope resposta = null;
             double t0 = 0;
             double t1 = 0;
-            if (servidores.TryGetValue(coordinator, out ServerInfo info))
+            if (servidores.TryGetValue(coordenador, out ServerInfo info))
             {
-                t0 = relogio.Raw();
-                resp = Pedir(info.Address, msgr.Build(Type.Clock), TimeoutServidor);
-                t1 = relogio.Raw();
+                t0 = relogio.Bruto();
+                resposta = Pedir(info.Endereco, mensageiro.Montar(Type.Relogio), TempoLimiteServidor);
+                t1 = relogio.Bruto();
             }
-            if (resp == null || resp.Status != Status.Ok)
+            if (resposta == null || resposta.Status != Status.Ok)
             {
-                Console.WriteLine($"[{Nome}] coordenador {coordinator} indisponível: pedindo eleição");
-                coordinator = null;
+                Console.WriteLine($"[{Nome}] coordenador {coordenador} indisponível: pedindo eleição");
+                coordenador = null;
                 precisaEleicao = true;
                 return;
             }
-            double offset = relogio.Sync(resp.Time, t0, t1);
-            Console.WriteLine($"[{Nome}] relógio ajustado pelo coordenador {coordinator}: correção de {offset.ToString("+0.000;-0.000", CultureInfo.InvariantCulture)}s");
+            double correcao = relogio.Sincronizar(resposta.Hora, t0, t1);
+            Console.WriteLine($"[{Nome}] relógio ajustado pelo coordenador {coordenador}: correção de {correcao.ToString("+0.000;-0.000", CultureInfo.InvariantCulture)}s");
         }
 
         private Envelope Erro(Type tipo, string texto)
         {
-            Envelope e = msgr.Build(tipo);
-            e.Status = Status.Error;
-            e.Error = texto;
+            Envelope e = mensageiro.Montar(tipo);
+            e.Status = Status.Erro;
+            e.Erro = texto;
             return e;
         }
 
-        private void AtenderPeer(byte[] dados)
+        private void AtenderPar(byte[] dados)
         {
-            if (!msgr.TryParse(dados, out Envelope env))
+            if (!mensageiro.TentarLer(dados, out Envelope envelope))
             {
-                peer.SendFrame(Erro(Type.Unknown, "mensagem inválida").ToByteArray());
+                par.SendFrame(Erro(Type.Desconhecido, "mensagem inválida").ToByteArray());
                 return;
             }
-            msgr.Show("RECEBE", env, env.Sender);
-            Envelope resp;
-            switch (env.Type)
+            mensageiro.Exibir("RECEBE", envelope, envelope.Remetente);
+            Envelope resposta;
+            switch (envelope.Tipo)
             {
-                case Type.Election:
-                    resp = msgr.Build(env.Type);
-                    resp.Status = Status.Ok;
-                    resp.Rank = rank;
+                case Type.Eleicao:
+                    resposta = mensageiro.Montar(envelope.Tipo);
+                    resposta.Status = Status.Ok;
+                    resposta.Rank = rank;
                     precisaEleicao = true;
                     break;
-                case Type.Sync:
-                    resp = msgr.Build(env.Type);
-                    resp.Status = Status.Ok;
-                    foreach (Entry e in store.Entries)
+                case Type.Sincronizar:
+                    resposta = mensageiro.Montar(envelope.Tipo);
+                    resposta.Status = Status.Ok;
+                    foreach (Entry e in armazenamento.Entradas)
                     {
-                        resp.Entries.Add(e.ToProto());
+                        resposta.Entradas.Add(e.ParaProto());
                     }
                     break;
-                case Type.Clock:
-                    if (coordinator == Nome)
+                case Type.Relogio:
+                    if (coordenador == Nome)
                     {
-                        resp = msgr.Build(env.Type);
-                        resp.Status = Status.Ok;
-                        resp.Time = relogio.Now();
+                        resposta = mensageiro.Montar(envelope.Tipo);
+                        resposta.Status = Status.Ok;
+                        resposta.Hora = relogio.Agora();
                     }
                     else
                     {
-                        resp = Erro(env.Type, "este servidor não é o coordenador");
+                        resposta = Erro(envelope.Tipo, "este servidor não é o coordenador");
                     }
                     break;
                 default:
-                    resp = Erro(env.Type, "tipo de mensagem desconhecido");
+                    resposta = Erro(envelope.Tipo, "tipo de mensagem desconhecido");
                     break;
             }
-            peer.SendFrame(resp.ToByteArray());
-            msgr.Show("ENVIA", resp, env.Sender);
+            par.SendFrame(resposta.ToByteArray());
+            mensageiro.Exibir("ENVIA", resposta, envelope.Remetente);
         }
 
         private void ReceberDoSub(byte[] topicoBytes, bool mais)
@@ -355,23 +354,23 @@ namespace Bbs
             {
                 return;
             }
-            if (!msgr.TryParse(dados, out Envelope env))
+            if (!mensageiro.TentarLer(dados, out Envelope envelope))
             {
                 return;
             }
-            if (env.Sender == Nome)
+            if (envelope.Remetente == Nome)
             {
                 return;
             }
-            msgr.Show("RECEBE", env, "#" + topico);
+            mensageiro.Exibir("RECEBE", envelope, "#" + topico);
             if (topico == TopicoReplica)
             {
-                AplicarEntradas(env.Entries, env.Sender);
+                AplicarEntradas(envelope.Entradas, envelope.Remetente);
                 return;
             }
-            coordinator = env.Coordinator;
-            Console.WriteLine($"[{Nome}] coordenador agora é {coordinator}");
-            if (rank != 0 && env.Rank < rank)
+            coordenador = envelope.Coordenador;
+            Console.WriteLine($"[{Nome}] coordenador agora é {coordenador}");
+            if (rank != 0 && envelope.Rank < rank)
             {
                 precisaEleicao = true;
             }
@@ -379,12 +378,12 @@ namespace Bbs
 
         private void Gravar(Entry entrada)
         {
-            if (store.Add(entrada))
+            if (armazenamento.Adicionar(entrada))
             {
-                Envelope msg = msgr.Build(Type.Replicate);
-                msg.Entries.Add(entrada.ToProto());
-                Publicar(TopicoReplica, msg);
-                msgr.Show("ENVIA", msg, "#" + TopicoReplica);
+                Envelope mensagem = mensageiro.Montar(Type.Replicar);
+                mensagem.Entradas.Add(entrada.ParaProto());
+                Publicar(TopicoReplica, mensagem);
+                mensageiro.Exibir("ENVIA", mensagem, "#" + TopicoReplica);
             }
         }
 
@@ -393,7 +392,7 @@ namespace Bbs
             int novas = 0;
             foreach (LogEntry le in entradas)
             {
-                if (store.Add(Entry.FromProto(le)))
+                if (armazenamento.Adicionar(Entry.DeProto(le)))
                 {
                     novas++;
                 }
@@ -407,10 +406,10 @@ namespace Bbs
 
         private void PuxarDe(ServerInfo info)
         {
-            Envelope resp = Pedir(info.Address, msgr.Build(Type.Sync), TimeoutSync);
-            if (resp != null && resp.Status == Status.Ok)
+            Envelope resposta = Pedir(info.Endereco, mensageiro.Montar(Type.Sincronizar), TempoLimiteSync);
+            if (resposta != null && resposta.Status == Status.Ok)
             {
-                AplicarEntradas(resp.Entries, info.Name);
+                AplicarEntradas(resposta.Entradas, info.Nome);
             }
         }
 
@@ -418,10 +417,10 @@ namespace Bbs
         {
             proximaSync = Util.AgoraMs() + AntiEntropiaMs;
             AtualizarServidores();
-            List<ServerInfo> outros = servidores.Values.Where(s => s.Name != Nome).ToList();
+            List<ServerInfo> outros = servidores.Values.Where(s => s.Nome != Nome).ToList();
             if (!todos && outros.Count > 0)
             {
-                outros = new List<ServerInfo> { outros[random.Next(outros.Count)] };
+                outros = new List<ServerInfo> { outros[sorteio.Next(outros.Count)] };
             }
             foreach (ServerInfo info in outros)
             {
@@ -429,121 +428,104 @@ namespace Bbs
             }
         }
 
-        private Entry Evento(string kind, string user, string channel, string text)
+        private Entry Evento(string tipo, string usuario, string canal, string texto)
         {
-            return store.NewEntry(kind, relogio.Now(), msgr.Clock, user, channel, text);
+            return armazenamento.NovaEntrada(tipo, relogio.Agora(), mensageiro.Relogio, usuario, canal, texto);
         }
 
-        private Envelope Tratar(Envelope env)
+        private Envelope Tratar(Envelope envelope)
         {
-            switch (env.Type)
+            switch (envelope.Tipo)
             {
                 case Type.Login:
                 {
-                    if (!Util.NomeValido(env.User))
+                    if (!Util.NomeValido(envelope.Usuario))
                     {
-                        return Erro(env.Type, "nome de usuário inválido (use 1 a 32 letras, números, _ ou -)");
+                        return Erro(envelope.Tipo, "nome de usuário inválido (use 1 a 32 letras, números, _ ou -)");
                     }
-                    Gravar(Evento("login", env.User, "", ""));
-                    Envelope r = msgr.Build(env.Type);
-                    r.Status = Status.Ok;
-                    r.User = env.User;
-                    return r;
+                    Gravar(Evento("login", envelope.Usuario, "", ""));
+                    Envelope resultado = mensageiro.Montar(envelope.Tipo);
+                    resultado.Status = Status.Ok;
+                    resultado.Usuario = envelope.Usuario;
+                    return resultado;
                 }
-                case Type.CreateChannel:
+                case Type.CriarCanal:
                 {
-                    if (!Util.NomeValido(env.Channel))
+                    if (!Util.NomeValido(envelope.Canal))
                     {
-                        return Erro(env.Type, "nome de canal inválido (use 1 a 32 letras, números, _ ou -)");
+                        return Erro(envelope.Tipo, "nome de canal inválido (use 1 a 32 letras, números, _ ou -)");
                     }
-                    if (Reservado(env.Channel))
+                    if (Reservado(envelope.Canal))
                     {
-                        return Erro(env.Type, $"'{env.Channel}' é um nome reservado");
+                        return Erro(envelope.Tipo, $"'{envelope.Canal}' é um nome reservado");
                     }
-                    if (store.HasChannel(env.Channel))
+                    if (armazenamento.TemCanal(envelope.Canal))
                     {
-                        return Erro(env.Type, $"o canal '{env.Channel}' já existe");
+                        return Erro(envelope.Tipo, $"o canal '{envelope.Canal}' já existe");
                     }
-                    Gravar(Evento("channel", env.Sender, env.Channel, ""));
-                    Envelope r = msgr.Build(env.Type);
-                    r.Status = Status.Ok;
-                    r.Channel = env.Channel;
-                    return r;
+                    Gravar(Evento("channel", envelope.Remetente, envelope.Canal, ""));
+                    Envelope resultado = mensageiro.Montar(envelope.Tipo);
+                    resultado.Status = Status.Ok;
+                    resultado.Canal = envelope.Canal;
+                    return resultado;
                 }
-                case Type.Publish:
+                case Type.Publicar:
                 {
-                    if (!Util.NomeValido(env.Channel))
+                    if (!Util.NomeValido(envelope.Canal))
                     {
-                        return Erro(env.Type, "nome de canal inválido");
+                        return Erro(envelope.Tipo, "nome de canal inválido");
                     }
-                    if (Reservado(env.Channel))
+                    if (Reservado(envelope.Canal))
                     {
-                        return Erro(env.Type, $"'{env.Channel}' é um nome reservado");
+                        return Erro(envelope.Tipo, $"'{envelope.Canal}' é um nome reservado");
                     }
-                    if (env.Text.Length == 0)
+                    if (envelope.Texto.Length == 0)
                     {
-                        return Erro(env.Type, "mensagem vazia");
+                        return Erro(envelope.Tipo, "mensagem vazia");
                     }
-                    Envelope publicacao = msgr.Build(Type.Publication);
-                    publicacao.User = env.Sender;
-                    publicacao.Channel = env.Channel;
-                    publicacao.Text = env.Text;
-                    Gravar(store.NewEntry("message", publicacao.Timestamp, publicacao.Clock, env.Sender, env.Channel, env.Text));
-                    Publicar(env.Channel, publicacao);
-                    msgr.Show("ENVIA", publicacao, "#" + env.Channel);
-                    Envelope r = msgr.Build(env.Type);
-                    r.Status = Status.Ok;
-                    r.Channel = env.Channel;
-                    return r;
+                    Envelope publicacao = mensageiro.Montar(Type.Publicacao);
+                    publicacao.Usuario = envelope.Remetente;
+                    publicacao.Canal = envelope.Canal;
+                    publicacao.Texto = envelope.Texto;
+                    Gravar(armazenamento.NovaEntrada("message", publicacao.Instante, publicacao.Relogio, envelope.Remetente, envelope.Canal, envelope.Texto));
+                    Publicar(envelope.Canal, publicacao);
+                    mensageiro.Exibir("ENVIA", publicacao, "#" + envelope.Canal);
+                    Envelope resultado = mensageiro.Montar(envelope.Tipo);
+                    resultado.Status = Status.Ok;
+                    resultado.Canal = envelope.Canal;
+                    return resultado;
                 }
-                case Type.ListChannels:
+                case Type.ListarCanais:
                 {
-                    Envelope r = msgr.Build(env.Type);
-                    r.Status = Status.Ok;
-                    r.Channels.AddRange(store.ChannelNames());
-                    return r;
-                }
-                case Type.History:
-                {
-                    if (!Util.NomeValido(env.Channel))
-                    {
-                        return Erro(env.Type, "nome de canal inválido");
-                    }
-                    List<Entry> msgs = store.Messages(env.Channel);
-                    Envelope r = msgr.Build(env.Type);
-                    r.Status = Status.Ok;
-                    r.Channel = env.Channel;
-                    r.Total = msgs.Count;
-                    foreach (Entry e in msgs.Skip(Math.Max(0, msgs.Count - Historico)))
-                    {
-                        r.Entries.Add(e.ToProto());
-                    }
-                    return r;
+                    Envelope resultado = mensageiro.Montar(envelope.Tipo);
+                    resultado.Status = Status.Ok;
+                    resultado.Canais.AddRange(armazenamento.NomesCanais());
+                    return resultado;
                 }
                 default:
-                    return Erro(env.Type, "tipo de mensagem desconhecido");
+                    return Erro(envelope.Tipo, "tipo de mensagem desconhecido");
             }
         }
 
         private void AtenderCliente(byte[] dados)
         {
-            if (!msgr.TryParse(dados, out Envelope env))
+            if (!mensageiro.TentarLer(dados, out Envelope envelope))
             {
-                Envelope invalida = Erro(Type.Unknown, "mensagem inválida (não é um Envelope Protobuf)");
+                Envelope invalida = Erro(Type.Desconhecido, "mensagem inválida (não é um Envelope Protobuf)");
                 rep.SendFrame(invalida.ToByteArray());
-                msgr.Show("ENVIA", invalida, "");
+                mensageiro.Exibir("ENVIA", invalida, "");
                 return;
             }
-            msgr.Show("RECEBE", env, env.Sender);
-            Envelope resp = Tratar(env);
-            rep.SendFrame(resp.ToByteArray());
-            msgr.Show("ENVIA", resp, env.Sender);
-            nMsgs++;
-            if (nMsgs % HeartbeatACadaN == 0)
+            mensageiro.Exibir("RECEBE", envelope, envelope.Remetente);
+            Envelope resposta = Tratar(envelope);
+            rep.SendFrame(resposta.ToByteArray());
+            mensageiro.Exibir("ENVIA", resposta, envelope.Remetente);
+            mensagensRecebidas++;
+            if (mensagensRecebidas % BatimentoACadaN == 0)
             {
-                Heartbeat();
+                Batimento();
             }
-            if (nMsgs % SincronizaACadaN == 0)
+            if (mensagensRecebidas % SincronizaACadaN == 0)
             {
                 SincronizarRelogio();
             }

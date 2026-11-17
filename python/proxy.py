@@ -1,9 +1,3 @@
-"""Proxy do Publish-Subscribe (XSUB/XPUB).
-
-Publishers (servidores) conectam na porta 5557 (XSUB) e subscribers (clientes)
-conectam na porta 5558 (XPUB). O proxy repassa as mensagens publicadas e
-encaminha as inscrições dos subscribers para os publishers.
-"""
 import zmq
 
 ctx = zmq.Context()

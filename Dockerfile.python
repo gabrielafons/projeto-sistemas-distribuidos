@@ -7,5 +7,4 @@ RUN pip install --no-cache-dir pyzmq==27.2.0 protobuf==7.36.1
 
 COPY python .
 
-# o comando é definido no docker-compose.yaml (broker, proxy, servidor, cliente...)
 CMD ["python", "server.py"]

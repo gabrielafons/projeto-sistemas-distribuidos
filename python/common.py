@@ -1,4 +1,3 @@
-"""Funções comuns a todos os processos em Python: relógios, serialização e exibição."""
 import time
 
 from google.protobuf import text_format
@@ -6,28 +5,24 @@ from google.protobuf import text_format
 import chat_pb2 as pb
 
 
-def encode(env):
-    """Serializa o Envelope em binário (Protobuf)."""
-    return env.SerializeToString()
+def codificar(envelope):
+    return envelope.SerializeToString()
 
 
-def decode(data):
-    """Reconstrói o Envelope a partir dos bytes recebidos."""
-    env = pb.Envelope()
-    env.ParseFromString(data)
-    return env
+def decodificar(dados):
+    envelope = pb.Envelope()
+    envelope.ParseFromString(dados)
+    return envelope
 
 
-def entry_to_proto(e):
-    """Entrada do log (dict) -> LogEntry (Protobuf)."""
-    return pb.LogEntry(id=e["id"], origin=e["origin"], kind=e["kind"], timestamp=e["ts"],
-                       clock=e.get("clock", 0), user=e["user"], channel=e["channel"], text=e["text"])
+def entrada_para_proto(e):
+    return pb.LogEntry(id=e["id"], origem=e["origin"], tipo=e["kind"], instante=e["ts"],
+                         relogio=e.get("clock", 0), usuario=e["user"], canal=e["channel"], texto=e["text"])
 
 
-def entry_from_proto(le):
-    """LogEntry (Protobuf) -> entrada do log (dict)."""
-    return {"id": le.id, "origin": le.origin, "kind": le.kind, "ts": le.timestamp, "clock": le.clock,
-            "user": le.user, "channel": le.channel, "text": le.text}
+def entrada_de_proto(le):
+    return {"id": le.id, "origin": le.origem, "kind": le.tipo, "ts": le.instante, "clock": le.relogio,
+            "user": le.usuario, "channel": le.canal, "text": le.texto}
 
 
 def hora():
@@ -36,58 +31,39 @@ def hora():
 
 
 class PhysicalClock:
-    """Relógio físico do processo.
+    def __init__(self, desvio=0.0):
+        self.desvio = desvio
+        self.correcao = 0.0
 
-    `skew` simula um relógio que anda errado (variável CLOCK_SKEW, só para testes) e
-    `offset` é a correção aplicada pela sincronização com o serviço de referência.
-    """
+    def bruto(self):
+        return time.time() + self.desvio
 
-    def __init__(self, skew=0.0):
-        self.skew = skew
-        self.offset = 0.0
+    def agora(self):
+        return self.bruto() + self.correcao
 
-    def raw(self):
-        """Hora do relógio local, sem correção."""
-        return time.time() + self.skew
-
-    def now(self):
-        """Hora corrigida, usada nos timestamps das mensagens."""
-        return self.raw() + self.offset
-
-    def sync(self, hora_remota, t0, t1):
-        """Ajusta o relógio com a hora informada por outro processo.
-
-        t0 e t1 são as horas locais (raw) do envio do pedido e do recebimento da
-        resposta. A hora remota chegou depois de metade do tempo de ida e volta.
-        """
+    def sincronizar(self, hora_remota, t0, t1):
         estimada = hora_remota + (t1 - t0) / 2
-        self.offset = estimada - t1
-        return self.offset
+        self.correcao = estimada - t1
+        return self.correcao
 
 
 class Messenger:
-    """Cria, lê e exibe as mensagens de um processo e mantém o seu relógio lógico."""
+    def __init__(self, nome, fisico=None):
+        self.nome = nome
+        self.fisico = fisico or PhysicalClock()
+        self.relogio = 0
 
-    def __init__(self, name, physical=None):
-        self.name = name
-        self.physical = physical or PhysicalClock()
-        self.clock = 0  # relógio lógico (Lamport)
+    def montar(self, tipo, **campos):
+        self.relogio += 1
+        return pb.Envelope(tipo=tipo, remetente=self.nome, instante=self.fisico.agora(),
+                           relogio=self.relogio, **campos)
 
-    def build(self, type_, **fields):
-        """Monta um Envelope para envio: incrementa o relógio lógico e coloca o
-        remetente, o timestamp (relógio físico) e o valor do contador."""
-        self.clock += 1
-        return pb.Envelope(type=type_, sender=self.name, timestamp=self.physical.now(),
-                           clock=self.clock, **fields)
+    def ler(self, dados):
+        envelope = decodificar(dados)
+        self.relogio = max(self.relogio, envelope.relogio)
+        return envelope
 
-    def parse(self, data):
-        """Lê a mensagem recebida e atualiza o relógio lógico: max(local, recebido)."""
-        env = decode(data)
-        self.clock = max(self.clock, env.clock)
-        return env
-
-    def show(self, direction, env, other="", extra=""):
-        """Exibe todo o conteúdo da mensagem enviada/recebida."""
-        corpo = text_format.MessageToString(env, as_one_line=True)
-        seta = "->" if direction == "ENVIA" else "<-"
-        print(f"{hora()} [{self.name}|L={self.clock}] {direction:<7} {seta} {other:<14} {corpo}{extra}", flush=True)
+    def exibir(self, direcao, envelope, outro="", extra=""):
+        corpo = text_format.MessageToString(envelope, as_one_line=True)
+        seta = "->" if direcao == "ENVIA" else "<-"
+        print(f"{hora()} [{self.nome}|L={self.relogio}] {direcao:<7} {seta} {outro:<14} {corpo}{extra}", flush=True)

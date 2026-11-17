@@ -1,4 +1,3 @@
-"""Cliente manual opcional para demonstrar o BBS existente, sem alterar os bots."""
 import argparse
 import time
 
@@ -10,20 +9,18 @@ from common import hora
 
 
 class ClienteManual(Bot):
-    def requisitar(self, env):
-        # Sem repeticao automatica: uma publicacao pode ter sido aceita antes
-        # de uma resposta se perder. Evita duplicar a mensagem sem avisar.
-        self.req.send(env.SerializeToString())
+    def requisitar(self, envelope):
+        self.req.send(envelope.SerializeToString())
         if not self.req.poll(10000):
             self._conectar()
             raise TimeoutError("Sem resposta em 10 s. Confira os servidores; a operacao pode ter sido aceita.")
-        return self.msgr.parse(self.req.recv())
+        return self.mensageiro.ler(self.req.recv())
 
 
-def conferir(resp):
-    if resp.status != pb.OK:
-        raise RuntimeError(resp.error or "Servidor recusou a operacao")
-    return resp
+def conferir(resposta):
+    if resposta.status != pb.OK:
+        raise RuntimeError(resposta.erro or "Servidor recusou a operacao")
+    return resposta
 
 
 def main():
@@ -34,23 +31,21 @@ def main():
     parser.add_argument("--todos", action="store_true", help="Receber publicacoes de todos os canais")
     args = parser.parse_args()
     bot = ClienteManual()
-    bot.name = args.nome
-    bot.msgr.name = args.nome
+    bot.nome = args.nome
+    bot.mensageiro.nome = args.nome
     try:
-        resp = conferir(bot.requisitar(bot.msgr.build(pb.LOGIN, user=bot.name)))
-        print(f"Login OK: {bot.name} | servidor: {resp.sender}", flush=True)
-        resp = conferir(bot.requisitar(bot.msgr.build(pb.LIST_CHANNELS)))
-        if args.canal not in resp.channels:
-            resp = bot.requisitar(bot.msgr.build(pb.CREATE_CHANNEL, channel=args.canal))
-            # Outro cliente pode ter criado o mesmo canal simultaneamente.
-            if resp.status != pb.OK:
-                canais = conferir(bot.requisitar(bot.msgr.build(pb.LIST_CHANNELS)))
-                if args.canal not in canais.channels:
-                    conferir(resp)
+        resposta = conferir(bot.requisitar(bot.mensageiro.montar(pb.LOGIN, usuario=bot.nome)))
+        print(f"Login OK: {bot.nome} | servidor: {resposta.remetente}", flush=True)
+        resposta = conferir(bot.requisitar(bot.mensageiro.montar(pb.LISTAR_CANAIS)))
+        if args.canal not in resposta.canais:
+            resposta = bot.requisitar(bot.mensageiro.montar(pb.CRIAR_CANAL, canal=args.canal))
+            if resposta.status != pb.OK:
+                canais = conferir(bot.requisitar(bot.mensageiro.montar(pb.LISTAR_CANAIS)))
+                if args.canal not in canais.canais:
+                    conferir(resposta)
 
         if args.modo == "receber":
             if args.todos:
-                # Assina todos os topicos, exibindo somente PUBLICATION abaixo.
                 bot.sub.setsockopt(zmq.SUBSCRIBE, b"")
             else:
                 bot.inscrever(args.canal)
@@ -59,35 +54,29 @@ def main():
             while True:
                 if not bot.sub.poll(500):
                     continue
-                frames = bot.sub.recv_multipart()
-                if len(frames) != 2:
+                quadros = bot.sub.recv_multipart()
+                if len(quadros) != 2:
                     continue
-                canal = frames[0].decode()
+                canal = quadros[0].decode()
                 if not args.todos and canal != args.canal:
                     continue
-                env = bot.msgr.parse(frames[1])
-                if env.type != pb.PUBLICATION:
+                envelope = bot.mensageiro.ler(quadros[1])
+                if envelope.tipo != pb.PUBLICACAO:
                     continue
-                print(f"\nRECEBIDO | {env.user or env.sender} -> #{canal}: {env.text}", flush=True)
-                print(f"Servidor: {env.sender} | envio: {env.timestamp:.3f} (Unix) | recebimento: {hora()} | L={bot.msgr.clock}", flush=True)
+                print(f"\nRECEBIDO | {envelope.usuario or envelope.remetente} -> #{canal}: {envelope.texto}", flush=True)
+                print(f"Servidor: {envelope.remetente} | envio: {envelope.instante:.3f} (Unix) | recebimento: {hora()} | L={bot.mensageiro.relogio}", flush=True)
         else:
             print(f"Canal #{args.canal}. Digite uma mensagem e Enter.", flush=True)
-            print("/historico mostra as ultimas mensagens; /sair encerra.", flush=True)
+            print("/sair encerra.", flush=True)
             while True:
-                texto = input(f"{bot.name}> ").strip()
+                texto = input(f"{bot.nome}> ").strip()
                 if texto == "/sair":
                     break
                 if not texto:
                     continue
                 try:
-                    if texto == "/historico":
-                        resp = conferir(bot.requisitar(bot.msgr.build(pb.HISTORY, channel=args.canal)))
-                        print(f"Historico respondido por {resp.sender}: {resp.total} mensagens")
-                        for e in resp.entries:
-                            print(f"  {e.user}: {e.text} | origem: {e.origin} | L={e.clock}")
-                    else:
-                        resp = conferir(bot.requisitar(bot.msgr.build(pb.PUBLISH, channel=args.canal, text=texto)))
-                        print(f"Servidor {resp.sender} confirmou OK | L={bot.msgr.clock}")
+                    resposta = conferir(bot.requisitar(bot.mensageiro.montar(pb.PUBLICAR, canal=args.canal, texto=texto)))
+                    print(f"Servidor {resposta.remetente} confirmou OK | L={bot.mensageiro.relogio}")
                 except (TimeoutError, RuntimeError) as exc:
                     print(f"AVISO: {exc}", flush=True)
     except (KeyboardInterrupt, EOFError):
@@ -98,7 +87,7 @@ def main():
     finally:
         bot.req.close(linger=0)
         bot.sub.close(linger=0)
-        bot.ctx.term()
+        bot.contexto.term()
 
 
 if __name__ == "__main__":

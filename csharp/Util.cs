@@ -6,10 +6,10 @@ namespace Bbs
 {
     internal static class Util
     {
-        public static string Env(string nome, string padrao)
+        public static string Variavel(string nome, string padrao)
         {
-            string v = Environment.GetEnvironmentVariable(nome);
-            return string.IsNullOrEmpty(v) ? padrao : v;
+            string valor = Environment.GetEnvironmentVariable(nome);
+            return string.IsNullOrEmpty(valor) ? padrao : valor;
         }
 
         public static double Agora()
@@ -27,88 +27,88 @@ namespace Bbs
             return DateTime.Now.ToString("HH:mm:ss.fff");
         }
 
-        public static bool NomeValido(string s)
+        public static bool NomeValido(string texto)
         {
-            return s.Length >= 1 && s.Length <= 32 && s.All(c => (c < 128 && char.IsLetterOrDigit(c)) || c == '_' || c == '-');
+            return texto.Length >= 1 && texto.Length <= 32 && texto.All(c => (c < 128 && char.IsLetterOrDigit(c)) || c == '_' || c == '-');
         }
 
-        public static void Dormir(int ms)
+        public static void Dormir(int milissegundos)
         {
-            Thread.Sleep(ms);
+            Thread.Sleep(milissegundos);
         }
     }
 
     internal sealed class PhysicalClock
     {
-        private readonly double skew;
-        private double offset = 0.0;
+        private readonly double desvio;
+        private double correcao = 0.0;
 
-        public PhysicalClock(double skew)
+        public PhysicalClock(double desvio)
         {
-            this.skew = skew;
+            this.desvio = desvio;
         }
 
-        public double Raw()
+        public double Bruto()
         {
-            return Util.Agora() + skew;
+            return Util.Agora() + desvio;
         }
 
-        public double Now()
+        public double Agora()
         {
-            return Raw() + offset;
+            return Bruto() + correcao;
         }
 
-        public double Sync(double horaRemota, double t0, double t1)
+        public double Sincronizar(double horaRemota, double t0, double t1)
         {
             double estimada = horaRemota + (t1 - t0) / 2.0;
-            offset = estimada - t1;
-            return offset;
+            correcao = estimada - t1;
+            return correcao;
         }
     }
 
     internal sealed class Messenger
     {
-        public string Name;
-        public long Clock = 0;
-        private readonly PhysicalClock physical;
+        public string Nome;
+        public long Relogio = 0;
+        private readonly PhysicalClock fisico;
 
-        public Messenger(string name, PhysicalClock physical)
+        public Messenger(string nome, PhysicalClock fisico)
         {
-            Name = name;
-            this.physical = physical;
+            Nome = nome;
+            this.fisico = fisico;
         }
 
-        public Envelope Build(Type type)
+        public Envelope Montar(Type tipo)
         {
-            Clock++;
+            Relogio++;
             return new Envelope
             {
-                Type = type,
-                Sender = Name,
-                Timestamp = physical.Now(),
-                Clock = Clock
+                Tipo = tipo,
+                Remetente = Nome,
+                Instante = fisico.Agora(),
+                Relogio = Relogio
             };
         }
 
-        public bool TryParse(byte[] data, out Envelope env)
+        public bool TentarLer(byte[] dados, out Envelope envelope)
         {
             try
             {
-                env = Envelope.Parser.ParseFrom(data);
-                Clock = Math.Max(Clock, env.Clock);
+                envelope = Envelope.Parser.ParseFrom(dados);
+                Relogio = Math.Max(Relogio, envelope.Relogio);
                 return true;
             }
             catch (Google.Protobuf.InvalidProtocolBufferException)
             {
-                env = null;
+                envelope = null;
                 return false;
             }
         }
 
-        public void Show(string direction, Envelope env, string other, string extra = "")
+        public void Exibir(string direcao, Envelope envelope, string outro, string extra = "")
         {
-            string seta = direction == "ENVIA" ? "->" : "<-";
-            Console.WriteLine($"{Util.Hora()} [{Name}|L={Clock}] {direction,-7} {seta} {other,-14} {env}{extra}");
+            string seta = direcao == "ENVIA" ? "->" : "<-";
+            Console.WriteLine($"{Util.Hora()} [{Nome}|L={Relogio}] {direcao,-7} {seta} {outro,-14} {envelope}{extra}");
         }
     }
 }

@@ -12,41 +12,41 @@ namespace Bbs
     internal sealed class Entry
     {
         [JsonPropertyName("id")] public string Id { get; set; } = "";
-        [JsonPropertyName("origin")] public string Origin { get; set; } = "";
-        [JsonPropertyName("kind")] public string Kind { get; set; } = "";
-        [JsonPropertyName("ts")] public double Ts { get; set; }
-        [JsonPropertyName("clock")] public long Clock { get; set; }
-        [JsonPropertyName("user")] public string User { get; set; } = "";
-        [JsonPropertyName("channel")] public string Channel { get; set; } = "";
-        [JsonPropertyName("text")] public string Text { get; set; } = "";
+        [JsonPropertyName("origin")] public string Origem { get; set; } = "";
+        [JsonPropertyName("kind")] public string Tipo { get; set; } = "";
+        [JsonPropertyName("ts")] public double Instante { get; set; }
+        [JsonPropertyName("clock")] public long Relogio { get; set; }
+        [JsonPropertyName("user")] public string Usuario { get; set; } = "";
+        [JsonPropertyName("channel")] public string Canal { get; set; } = "";
+        [JsonPropertyName("text")] public string Texto { get; set; } = "";
 
-        public LogEntry ToProto()
+        public LogEntry ParaProto()
         {
             return new LogEntry
             {
                 Id = Id,
-                Origin = Origin,
-                Kind = Kind,
-                Timestamp = Ts,
-                Clock = Clock,
-                User = User,
-                Channel = Channel,
-                Text = Text
+                Origem = Origem,
+                Tipo = Tipo,
+                Instante = Instante,
+                Relogio = Relogio,
+                Usuario = Usuario,
+                Canal = Canal,
+                Texto = Texto
             };
         }
 
-        public static Entry FromProto(LogEntry le)
+        public static Entry DeProto(LogEntry le)
         {
             return new Entry
             {
                 Id = le.Id,
-                Origin = le.Origin,
-                Kind = le.Kind,
-                Ts = le.Timestamp,
-                Clock = le.Clock,
-                User = le.User,
-                Channel = le.Channel,
-                Text = le.Text
+                Origem = le.Origem,
+                Tipo = le.Tipo,
+                Instante = le.Instante,
+                Relogio = le.Relogio,
+                Usuario = le.Usuario,
+                Canal = le.Canal,
+                Texto = le.Texto
             };
         }
     }
@@ -58,22 +58,22 @@ namespace Bbs
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
 
-        private readonly string serverName;
+        private readonly string nomeServidor;
         private readonly FileStream arquivo;
         private readonly HashSet<string> ids = new HashSet<string>();
         private readonly SortedSet<string> canais = new SortedSet<string>(StringComparer.Ordinal);
 
-        public string Path { get; }
-        public List<Entry> Entries { get; } = new List<Entry>();
+        public string Caminho { get; }
+        public List<Entry> Entradas { get; } = new List<Entry>();
 
-        public Store(string dataDir, string serverName)
+        public Store(string pastaDados, string nomeServidor)
         {
-            this.serverName = serverName;
-            Directory.CreateDirectory(dataDir);
-            Path = System.IO.Path.Combine(dataDir, serverName + ".jsonl");
-            if (File.Exists(Path))
+            this.nomeServidor = nomeServidor;
+            Directory.CreateDirectory(pastaDados);
+            Caminho = Path.Combine(pastaDados, nomeServidor + ".jsonl");
+            if (File.Exists(Caminho))
             {
-                foreach (string linha in File.ReadLines(Path, Encoding.UTF8))
+                foreach (string linha in File.ReadLines(Caminho, Encoding.UTF8))
                 {
                     if (string.IsNullOrWhiteSpace(linha))
                     {
@@ -86,35 +86,35 @@ namespace Bbs
                     }
                 }
             }
-            arquivo = new FileStream(Path, FileMode.Append, FileAccess.Write, FileShare.Read);
+            arquivo = new FileStream(Caminho, FileMode.Append, FileAccess.Write, FileShare.Read);
         }
 
         private void Aplicar(Entry e)
         {
-            Entries.Add(e);
+            Entradas.Add(e);
             ids.Add(e.Id);
-            if (e.Kind == "channel")
+            if (e.Tipo == "channel")
             {
-                canais.Add(e.Channel);
+                canais.Add(e.Canal);
             }
         }
 
-        public Entry NewEntry(string kind, double ts, long clock, string user, string channel, string text)
+        public Entry NovaEntrada(string tipo, double instante, long relogio, string usuario, string canal, string texto)
         {
             return new Entry
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Origin = serverName,
-                Kind = kind,
-                Ts = ts,
-                Clock = clock,
-                User = user,
-                Channel = channel,
-                Text = text
+                Origem = nomeServidor,
+                Tipo = tipo,
+                Instante = instante,
+                Relogio = relogio,
+                Usuario = usuario,
+                Canal = canal,
+                Texto = texto
             };
         }
 
-        public bool Add(Entry e)
+        public bool Adicionar(Entry e)
         {
             if (ids.Contains(e.Id))
             {
@@ -127,22 +127,12 @@ namespace Bbs
             return true;
         }
 
-        public List<Entry> Messages(string channel)
+        public bool TemCanal(string nome)
         {
-            return Entries
-                .Where(e => e.Kind == "message" && e.Channel == channel)
-                .OrderBy(e => e.Clock)
-                .ThenBy(e => e.Origin, StringComparer.Ordinal)
-                .ThenBy(e => e.Id, StringComparer.Ordinal)
-                .ToList();
+            return canais.Contains(nome);
         }
 
-        public bool HasChannel(string name)
-        {
-            return canais.Contains(name);
-        }
-
-        public List<string> ChannelNames()
+        public List<string> NomesCanais()
         {
             return canais.ToList();
         }

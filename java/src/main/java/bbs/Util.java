@@ -12,27 +12,27 @@ final class Util {
     private Util() {
     }
 
-    static String env(String nome, String padrao) {
-        String v = System.getenv(nome);
-        return v == null || v.isEmpty() ? padrao : v;
+    static String variavel(String nome, String padrao) {
+        String valor = System.getenv(nome);
+        return valor == null || valor.isEmpty() ? padrao : valor;
     }
 
     static double agora() {
-        Instant i = Instant.now();
-        return i.getEpochSecond() + i.getNano() / 1e9;
+        Instant instante = Instant.now();
+        return instante.getEpochSecond() + instante.getNano() / 1e9;
     }
 
     static String hora() {
         return LocalTime.now().format(HORA);
     }
 
-    static boolean nomeValido(String s) {
-        return NOME.matcher(s).matches();
+    static boolean nomeValido(String texto) {
+        return NOME.matcher(texto).matches();
     }
 
-    static void dormir(long ms) {
+    static void dormir(long milissegundos) {
         try {
-            Thread.sleep(ms);
+            Thread.sleep(milissegundos);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

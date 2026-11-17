@@ -7,9 +7,9 @@
 
 namespace {
 
-const std::string BROKER_HOST = util::env("BROKER_HOST", "broker");
-const std::string PROXY_HOST = util::env("PROXY_HOST", "proxy");
-constexpr int TIMEOUT_MS = 5000;
+const std::string HOST_BROKER = util::variavel("BROKER_HOST", "broker");
+const std::string HOST_PROXY = util::variavel("PROXY_HOST", "proxy");
+constexpr int TEMPO_LIMITE_MS = 5000;
 
 const std::vector<std::string> FRASES = {
     "bom dia",          "alguém aí?",       "olá, pessoal",
@@ -24,22 +24,22 @@ long long agoraMs() {
 class Bot {
 public:
     Bot()
-        : gen_(std::random_device{}()),
+        : gerador_(std::random_device{}()),
           relogio_(0.0),
-          msgr_(inicial(), &relogio_),
-          ctx_(1),
-          sub_(ctx_, zmq::socket_type::sub) {
-        name_ = msgr_.name();
-        sub_.connect("tcp://" + PROXY_HOST + ":5558");
+          mensageiro_(inicial(), &relogio_),
+          contexto_(1),
+          sub_(contexto_, zmq::socket_type::sub) {
+        nome_ = mensageiro_.nome();
+        sub_.connect("tcp://" + HOST_PROXY + ":5558");
         conectar();
     }
 
-    void run() {
+    void executar() {
         login();
         while (true) {
             auto canais = listarCanais();
             if (canais.size() < 5) {
-                criarCanal("canal-" + std::to_string(sorteio(1000, 9999)));
+                criarCanal("canal-" + std::to_string(sortear(1000, 9999)));
                 canais = listarCanais();
             }
             if (inscritos_.size() < 3) {
@@ -50,16 +50,15 @@ public:
                     }
                 }
                 if (!disponiveis.empty()) {
-                    inscrever(disponiveis[sorteio(0, static_cast<int>(disponiveis.size()) - 1)]);
+                    inscrever(disponiveis[sortear(0, static_cast<int>(disponiveis.size()) - 1)]);
                 }
             }
             if (!canais.empty()) {
-                std::string canal = canais[sorteio(0, static_cast<int>(canais.size()) - 1)];
+                std::string canal = canais[sortear(0, static_cast<int>(canais.size()) - 1)];
                 for (int i = 0; i < 10; i++) {
-                    publicar(canal, FRASES[sorteio(0, static_cast<int>(FRASES.size()) - 1)]);
+                    publicar(canal, FRASES[sortear(0, static_cast<int>(FRASES.size()) - 1)]);
                     esperar(1000);
                 }
-                historico(canal);
             } else {
                 esperar(1000);
             }
@@ -68,7 +67,7 @@ public:
 
 private:
     static std::string inicial() {
-        std::string n = util::env("BOT_NAME", "");
+        std::string n = util::variavel("BOT_NAME", "");
         if (!n.empty()) {
             return n;
         }
@@ -76,33 +75,33 @@ private:
         return "cpp-bot-" + std::to_string(1000 + g() % 9000);
     }
 
-    int sorteio(int a, int b) {
-        std::uniform_int_distribution<int> d(a, b);
-        return d(gen_);
+    int sortear(int inicio, int fim) {
+        std::uniform_int_distribution<int> d(inicio, fim);
+        return d(gerador_);
     }
 
     void conectar() {
-        req_ = std::make_unique<zmq::socket_t>(ctx_, zmq::socket_type::req);
+        req_ = std::make_unique<zmq::socket_t>(contexto_, zmq::socket_type::req);
         req_->set(zmq::sockopt::linger, 0);
-        req_->connect("tcp://" + BROKER_HOST + ":5555");
+        req_->connect("tcp://" + HOST_BROKER + ":5555");
     }
 
-    Envelope requisitar(const Envelope& env) {
+    Envelope requisitar(const Envelope& envelope) {
         while (true) {
-            enviar(*req_, env.SerializeAsString());
-            msgr_.show("ENVIA", env, "servidor");
+            enviar(*req_, envelope.SerializeAsString());
+            mensageiro_.exibir("ENVIA", envelope, "servidor");
             zmq::pollitem_t item = {req_->handle(), 0, ZMQ_POLLIN, 0};
             std::vector<zmq::pollitem_t> itens = {item};
-            zmq::poll(itens, std::chrono::milliseconds(TIMEOUT_MS));
+            zmq::poll(itens, std::chrono::milliseconds(TEMPO_LIMITE_MS));
             if (itens[0].revents & ZMQ_POLLIN) {
                 auto dados = receber(*req_, false);
-                Envelope resp;
-                if (dados && msgr_.parse(*dados, &resp)) {
-                    msgr_.show("RECEBE", resp, resp.sender());
-                    return resp;
+                Envelope resposta;
+                if (dados && mensageiro_.ler(*dados, &resposta)) {
+                    mensageiro_.exibir("RECEBE", resposta, resposta.remetente());
+                    return resposta;
                 }
             }
-            std::cout << "[" << name_ << "] sem resposta em " << TIMEOUT_MS << " ms, tentando de novo"
+            std::cout << "[" << nome_ << "] sem resposta em " << TEMPO_LIMITE_MS << " ms, tentando de novo"
                       << std::endl;
             conectar();
         }
@@ -110,62 +109,46 @@ private:
 
     void login() {
         while (true) {
-            Envelope req = msgr_.build(LOGIN);
-            req.set_user(name_);
-            if (requisitar(req).status() == OK) {
+            Envelope requisicao = mensageiro_.montar(LOGIN);
+            requisicao.set_usuario(nome_);
+            if (requisitar(requisicao).status() == OK) {
                 return;
             }
             util::dormir(1000);
-            name_ = "cpp-bot-" + std::to_string(sorteio(1000, 9999));
-            msgr_.setName(name_);
+            nome_ = "cpp-bot-" + std::to_string(sortear(1000, 9999));
+            mensageiro_.setNome(nome_);
         }
     }
 
     std::vector<std::string> listarCanais() {
-        Envelope resp = requisitar(msgr_.build(LIST_CHANNELS));
+        Envelope resposta = requisitar(mensageiro_.montar(LISTAR_CANAIS));
         std::vector<std::string> canais;
-        if (resp.status() == OK) {
-            for (const auto& c : resp.channels()) {
+        if (resposta.status() == OK) {
+            for (const auto& c : resposta.canais()) {
                 canais.push_back(c);
             }
         }
         return canais;
     }
 
-    bool criarCanal(const std::string& nome) {
-        Envelope req = msgr_.build(CREATE_CHANNEL);
-        req.set_channel(nome);
-        return requisitar(req).status() == OK;
+    bool criarCanal(const std::string& nomeCanal) {
+        Envelope requisicao = mensageiro_.montar(CRIAR_CANAL);
+        requisicao.set_canal(nomeCanal);
+        return requisitar(requisicao).status() == OK;
     }
 
     void inscrever(const std::string& canal) {
         sub_.set(zmq::sockopt::subscribe, canal);
         inscritos_.insert(canal);
-        std::cout << "[" << name_ << "] inscrito no canal #" << canal << " (" << inscritos_.size()
+        std::cout << "[" << nome_ << "] inscrito no canal #" << canal << " (" << inscritos_.size()
                   << " inscrições)" << std::endl;
     }
 
     bool publicar(const std::string& canal, const std::string& texto) {
-        Envelope req = msgr_.build(PUBLISH);
-        req.set_channel(canal);
-        req.set_text(texto);
-        return requisitar(req).status() == OK;
-    }
-
-    void historico(const std::string& canal) {
-        Envelope req = msgr_.build(HISTORY);
-        req.set_channel(canal);
-        Envelope resp = requisitar(req);
-        if (resp.status() != OK) {
-            return;
-        }
-        std::cout << "[" << name_ << "] histórico de #" << canal << ": " << resp.total()
-                  << " mensagens no total (respondido por " << resp.sender() << "); últimas "
-                  << resp.entries_size() << ":" << std::endl;
-        for (const auto& e : resp.entries()) {
-            std::cout << "    [L=" << e.clock() << "] " << e.user() << ": " << e.text() << "  (recebida por "
-                      << e.origin() << ")" << std::endl;
-        }
+        Envelope requisicao = mensageiro_.montar(PUBLICAR);
+        requisicao.set_canal(canal);
+        requisicao.set_texto(texto);
+        return requisitar(requisicao).status() == OK;
     }
 
     void receberPublicacao() {
@@ -177,9 +160,9 @@ private:
         if (!canal || !dados || inscritos_.count(*canal) == 0) {
             return;
         }
-        Envelope env;
-        if (msgr_.parse(*dados, &env)) {
-            msgr_.show("RECEBE", env, "#" + *canal, "  | recebida em " + util::hora());
+        Envelope envelope;
+        if (mensageiro_.ler(*dados, &envelope)) {
+            mensageiro_.exibir("RECEBE", envelope, "#" + *canal, "  | recebida em " + util::hora());
         }
     }
 
@@ -198,11 +181,11 @@ private:
         }
     }
 
-    std::mt19937 gen_;
+    std::mt19937 gerador_;
     PhysicalClock relogio_;
-    Messenger msgr_;
-    std::string name_;
-    zmq::context_t ctx_;
+    Messenger mensageiro_;
+    std::string nome_;
+    zmq::context_t contexto_;
     zmq::socket_t sub_;
     std::unique_ptr<zmq::socket_t> req_;
     std::set<std::string> inscritos_;
@@ -212,6 +195,6 @@ private:
 
 int main() {
     Bot bot;
-    bot.run();
+    bot.executar();
     return 0;
 }

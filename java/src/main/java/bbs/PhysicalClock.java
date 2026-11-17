@@ -1,24 +1,24 @@
 package bbs;
 
 final class PhysicalClock {
-    private final double skew;
-    private double offset = 0.0;
+    private final double desvio;
+    private double correcao = 0.0;
 
-    PhysicalClock(double skew) {
-        this.skew = skew;
+    PhysicalClock(double desvio) {
+        this.desvio = desvio;
     }
 
-    double raw() {
-        return Util.agora() + skew;
+    double bruto() {
+        return Util.agora() + desvio;
     }
 
-    double now() {
-        return raw() + offset;
+    double agora() {
+        return bruto() + correcao;
     }
 
-    double sync(double horaRemota, double t0, double t1) {
+    double sincronizar(double horaRemota, double t0, double t1) {
         double estimada = horaRemota + (t1 - t0) / 2.0;
-        offset = estimada - t1;
-        return offset;
+        correcao = estimada - t1;
+        return correcao;
     }
 }
