@@ -28,9 +28,9 @@ public:
           relogio_(0.0),
           mensageiro_(inicial(), &relogio_),
           contexto_(1),
-          sub_(contexto_, zmq::socket_type::sub) {
+          assinante_(contexto_, zmq::socket_type::assinante) {
         nome_ = mensageiro_.nome();
-        sub_.connect("tcp://" + HOST_PROXY + ":5558");
+        assinante_.connect("tcp://" + HOST_PROXY + ":5558");
         conectar();
     }
 
@@ -81,20 +81,20 @@ private:
     }
 
     void conectar() {
-        req_ = std::make_unique<zmq::socket_t>(contexto_, zmq::socket_type::req);
-        req_->set(zmq::sockopt::linger, 0);
-        req_->connect("tcp://" + HOST_BROKER + ":5555");
+        requisicao_ = std::make_unique<zmq::socket_t>(contexto_, zmq::socket_type::requisicao);
+        requisicao_->set(zmq::sockopt::linger, 0);
+        requisicao_->connect("tcp://" + HOST_BROKER + ":5555");
     }
 
     Envelope requisitar(const Envelope& envelope) {
         while (true) {
-            enviar(*req_, envelope.SerializeAsString());
+            enviar(*requisicao_, envelope.SerializeAsString());
             mensageiro_.exibir("ENVIA", envelope, "servidor");
-            zmq::pollitem_t item = {req_->handle(), 0, ZMQ_POLLIN, 0};
+            zmq::pollitem_t item = {requisicao_->handle(), 0, ZMQ_POLLIN, 0};
             std::vector<zmq::pollitem_t> itens = {item};
             zmq::poll(itens, std::chrono::milliseconds(TEMPO_LIMITE_MS));
             if (itens[0].revents & ZMQ_POLLIN) {
-                auto dados = receber(*req_, false);
+                auto dados = receber(*requisicao_, false);
                 Envelope resposta;
                 if (dados && mensageiro_.ler(*dados, &resposta)) {
                     mensageiro_.exibir("RECEBE", resposta, resposta.remetente());
@@ -138,7 +138,7 @@ private:
     }
 
     void inscrever(const std::string& canal) {
-        sub_.set(zmq::sockopt::subscribe, canal);
+        assinante_.set(zmq::sockopt::subscribe, canal);
         inscritos_.insert(canal);
         std::cout << "[" << nome_ << "] inscrito no canal #" << canal << " (" << inscritos_.size()
                   << " inscrições)" << std::endl;
@@ -152,10 +152,10 @@ private:
     }
 
     void receberPublicacao() {
-        auto canal = receber(sub_, false);
+        auto canal = receber(assinante_, false);
         std::optional<std::string> dados;
-        while (sub_.get(zmq::sockopt::rcvmore)) {
-            dados = receber(sub_, false);
+        while (assinante_.get(zmq::sockopt::rcvmore)) {
+            dados = receber(assinante_, false);
         }
         if (!canal || !dados || inscritos_.count(*canal) == 0) {
             return;
@@ -173,7 +173,7 @@ private:
             if (resto <= 0) {
                 return;
             }
-            std::vector<zmq::pollitem_t> itens = {{sub_.handle(), 0, ZMQ_POLLIN, 0}};
+            std::vector<zmq::pollitem_t> itens = {{assinante_.handle(), 0, ZMQ_POLLIN, 0}};
             zmq::poll(itens, std::chrono::milliseconds(resto));
             if (itens[0].revents & ZMQ_POLLIN) {
                 receberPublicacao();
@@ -186,8 +186,8 @@ private:
     Messenger mensageiro_;
     std::string nome_;
     zmq::context_t contexto_;
-    zmq::socket_t sub_;
-    std::unique_ptr<zmq::socket_t> req_;
+    zmq::socket_t assinante_;
+    std::unique_ptr<zmq::socket_t> requisicao_;
     std::set<std::string> inscritos_;
 };
 

@@ -55,29 +55,29 @@ public final class Server {
     private final Random sorteio = new Random();
 
     private final ZContext contexto = new ZContext();
-    private final ZMQ.Socket rep;
+    private final ZMQ.Socket atendimento;
     private final ZMQ.Socket par;
-    private final ZMQ.Socket pub;
-    private final ZMQ.Socket sub;
+    private final ZMQ.Socket publicador;
+    private final ZMQ.Socket assinante;
 
     Server() {
         relogio = new PhysicalClock(DESVIO_RELOGIO);
         mensageiro = new Messenger(NOME, relogio);
         armazenamento = new Store(DATA_DIR, NOME);
 
-        rep = contexto.createSocket(SocketType.REP);
-        rep.connect("tcp://" + BROKER_HOST + ":5556");
+        atendimento = contexto.createSocket(SocketType.REP);
+        atendimento.connect("tcp://" + BROKER_HOST + ":5556");
 
         par = contexto.createSocket(SocketType.REP);
         par.bind("tcp://*:" + PEER_PORT);
 
-        pub = contexto.createSocket(SocketType.PUB);
-        pub.connect("tcp://" + PROXY_HOST + ":5557");
+        publicador = contexto.createSocket(SocketType.PUB);
+        publicador.connect("tcp://" + PROXY_HOST + ":5557");
 
-        sub = contexto.createSocket(SocketType.SUB);
-        sub.connect("tcp://" + PROXY_HOST + ":5558");
-        sub.subscribe(TOPICO_SERVIDORES.getBytes(StandardCharsets.UTF_8));
-        sub.subscribe(TOPICO_REPLICA.getBytes(StandardCharsets.UTF_8));
+        assinante = contexto.createSocket(SocketType.SUB);
+        assinante.connect("tcp://" + PROXY_HOST + ":5558");
+        assinante.subscribe(TOPICO_SERVIDORES.getBytes(StandardCharsets.UTF_8));
+        assinante.subscribe(TOPICO_REPLICA.getBytes(StandardCharsets.UTF_8));
     }
 
     private static byte[] bytesDe(String texto) {
@@ -85,17 +85,17 @@ public final class Server {
     }
 
     private void publicar(String topico, Envelope envelope) {
-        pub.send(bytesDe(topico), ZMQ.SNDMORE);
-        pub.send(envelope.toByteArray(), 0);
+        publicador.send(bytesDe(topico), ZMQ.SNDMORE);
+        publicador.send(envelope.toByteArray(), 0);
     }
 
     private Envelope pedir(String endereco, Envelope envelope, long timeoutMs) {
-        ZMQ.Socket req = contexto.createSocket(SocketType.REQ);
+        ZMQ.Socket requisicao = contexto.createSocket(SocketType.REQ);
         try {
-            req.setLinger(0);
-            req.setSendTimeOut((int) timeoutMs);
-            req.connect(endereco);
-            if (!req.send(envelope.toByteArray(), 0)) {
+            requisicao.setLinger(0);
+            requisicao.setSendTimeOut((int) timeoutMs);
+            requisicao.connect(endereco);
+            if (!requisicao.send(envelope.toByteArray(), 0)) {
                 System.out.println("[" + NOME + "] sem resposta de " + endereco + " em " + timeoutMs / 1000.0 + "s");
                 return null;
             }
@@ -107,7 +107,7 @@ public final class Server {
                 if (pedidoPar != null) {
                     atenderPar(pedidoPar);
                 }
-                byte[] resposta = req.recv(ZMQ.DONTWAIT);
+                byte[] resposta = requisicao.recv(ZMQ.DONTWAIT);
                 if (resposta != null) {
                     Envelope recebida = mensageiro.ler(resposta);
                     mensageiro.exibir("RECEBE", recebida, recebida.getRemetente(), "");
@@ -125,7 +125,7 @@ public final class Server {
             System.out.println("[" + NOME + "] falha ao falar com " + endereco + ": " + e.getMessage());
             return null;
         } finally {
-            contexto.destroySocket(req);
+            contexto.destroySocket(requisicao);
         }
     }
 
@@ -273,8 +273,8 @@ public final class Server {
 
     private void receberDoSub(byte[] topicoBytes) {
         byte[] dados = null;
-        while (sub.hasReceiveMore()) {
-            dados = sub.recv(0);
+        while (assinante.hasReceiveMore()) {
+            dados = assinante.recv(0);
         }
         if (dados == null) {
             return;
@@ -417,13 +417,13 @@ public final class Server {
             envelope = mensageiro.ler(dados);
         } catch (InvalidProtocolBufferException e) {
             Envelope resposta = erro(Type.DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)");
-            rep.send(resposta.toByteArray(), 0);
+            atendimento.send(resposta.toByteArray(), 0);
             mensageiro.exibir("ENVIA", resposta, "", "");
             return;
         }
         mensageiro.exibir("RECEBE", envelope, envelope.getRemetente(), "");
         Envelope resposta = tratar(envelope);
-        rep.send(resposta.toByteArray(), 0);
+        atendimento.send(resposta.toByteArray(), 0);
         mensageiro.exibir("ENVIA", resposta, envelope.getRemetente(), "");
         mensagensRecebidas++;
         if (mensagensRecebidas % HEARTBEAT_A_CADA == 0) {
@@ -440,7 +440,7 @@ public final class Server {
         antiEntropia(true);
         while (true) {
             boolean ativo = false;
-            byte[] pedidoCliente = rep.recv(ZMQ.DONTWAIT);
+            byte[] pedidoCliente = atendimento.recv(ZMQ.DONTWAIT);
             if (pedidoCliente != null) {
                 atenderCliente(pedidoCliente);
                 ativo = true;
@@ -450,7 +450,7 @@ public final class Server {
                 atenderPar(pedidoPar);
                 ativo = true;
             }
-            byte[] publicado = sub.recv(ZMQ.DONTWAIT);
+            byte[] publicado = assinante.recv(ZMQ.DONTWAIT);
             if (publicado != null) {
                 receberDoSub(publicado);
                 ativo = true;

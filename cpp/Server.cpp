@@ -46,18 +46,18 @@ public:
           mensageiro_(NOME, &relogio_),
           armazenamento_(DIRETORIO_DADOS, NOME),
           contexto_(1),
-          rep_(contexto_, zmq::socket_type::rep),
-          par_(contexto_, zmq::socket_type::rep),
-          pub_(contexto_, zmq::socket_type::pub),
-          sub_(contexto_, zmq::socket_type::sub),
+          atendimento_(contexto_, zmq::socket_type::atendimento),
+          par_(contexto_, zmq::socket_type::atendimento),
+          publicador_(contexto_, zmq::socket_type::publicador),
+          assinante_(contexto_, zmq::socket_type::assinante),
           proximaSync_(agoraMs() + ANTI_ENTROPIA),
           sorteio_(std::random_device{}()) {
-        rep_.connect("tcp://" + HOST_BROKER + ":5556");
+        atendimento_.connect("tcp://" + HOST_BROKER + ":5556");
         par_.bind("tcp://*:" + PORTA_PAR);
-        pub_.connect("tcp://" + HOST_PROXY + ":5557");
-        sub_.connect("tcp://" + HOST_PROXY + ":5558");
-        sub_.set(zmq::sockopt::subscribe, TOPICO_SERVIDORES);
-        sub_.set(zmq::sockopt::subscribe, TOPICO_REPLICA);
+        publicador_.connect("tcp://" + HOST_PROXY + ":5557");
+        assinante_.connect("tcp://" + HOST_PROXY + ":5558");
+        assinante_.set(zmq::sockopt::subscribe, TOPICO_SERVIDORES);
+        assinante_.set(zmq::sockopt::subscribe, TOPICO_REPLICA);
     }
 
     void executar() {
@@ -66,9 +66,9 @@ public:
         registrar();
         antiEntropia(true);
         while (true) {
-            std::vector<zmq::pollitem_t> itens = {{rep_.handle(), 0, ZMQ_POLLIN, 0},
+            std::vector<zmq::pollitem_t> itens = {{atendimento_.handle(), 0, ZMQ_POLLIN, 0},
                                                   {par_.handle(), 0, ZMQ_POLLIN, 0},
-                                                  {sub_.handle(), 0, ZMQ_POLLIN, 0}};
+                                                  {assinante_.handle(), 0, ZMQ_POLLIN, 0}};
             zmq::poll(itens, std::chrono::milliseconds(1000));
             if (itens[0].revents & ZMQ_POLLIN) {
                 atenderCliente();
@@ -90,16 +90,16 @@ public:
 
 private:
     void publicar(const std::string& topico, const Envelope& envelope) {
-        enviar(pub_, topico, true);
-        enviar(pub_, envelope.SerializeAsString());
+        enviar(publicador_, topico, true);
+        enviar(publicador_, envelope.SerializeAsString());
     }
 
     std::optional<Envelope> pedir(const std::string& endereco, const Envelope& envelope, int tempoLimiteMs) {
         try {
-            zmq::socket_t req(contexto_, zmq::socket_type::req);
-            req.set(zmq::sockopt::linger, 0);
-            req.connect(endereco);
-            enviar(req, envelope.SerializeAsString());
+            zmq::socket_t requisicao(contexto_, zmq::socket_type::requisicao);
+            requisicao.set(zmq::sockopt::linger, 0);
+            requisicao.connect(endereco);
+            enviar(requisicao, envelope.SerializeAsString());
             auto pos = endereco.find("//");
             mensageiro_.exibir("ENVIA", envelope, pos == std::string::npos ? endereco : endereco.substr(pos + 2));
             long long fim = agoraMs() + tempoLimiteMs;
@@ -109,14 +109,14 @@ private:
                     semResposta(endereco, tempoLimiteMs);
                     return std::nullopt;
                 }
-                std::vector<zmq::pollitem_t> itens = {{req.handle(), 0, ZMQ_POLLIN, 0},
+                std::vector<zmq::pollitem_t> itens = {{requisicao.handle(), 0, ZMQ_POLLIN, 0},
                                                       {par_.handle(), 0, ZMQ_POLLIN, 0}};
                 zmq::poll(itens, std::chrono::milliseconds(resto));
                 if (itens[1].revents & ZMQ_POLLIN) {
                     atenderPar();
                 }
                 if (itens[0].revents & ZMQ_POLLIN) {
-                    auto dados = receber(req, false);
+                    auto dados = receber(requisicao, false);
                     Envelope resposta;
                     if (!dados || !mensageiro_.ler(*dados, &resposta)) {
                         return std::nullopt;
@@ -302,10 +302,10 @@ private:
     }
 
     void receberDoSub() {
-        auto topico = receber(sub_, false);
+        auto topico = receber(assinante_, false);
         std::optional<std::string> dados;
-        while (sub_.get(zmq::sockopt::rcvmore)) {
-            dados = receber(sub_, false);
+        while (assinante_.get(zmq::sockopt::rcvmore)) {
+            dados = receber(assinante_, false);
         }
         if (!topico || !dados) {
             return;
@@ -452,17 +452,17 @@ private:
     }
 
     void atenderCliente() {
-        auto dados = receber(rep_, false);
+        auto dados = receber(atendimento_, false);
         Envelope envelope;
         if (!dados || !mensageiro_.ler(*dados, &envelope)) {
             Envelope resposta = erro(DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)");
-            enviar(rep_, resposta.SerializeAsString());
+            enviar(atendimento_, resposta.SerializeAsString());
             mensageiro_.exibir("ENVIA", resposta, "");
             return;
         }
         mensageiro_.exibir("RECEBE", envelope, envelope.remetente());
         Envelope resposta = tratar(envelope);
-        enviar(rep_, resposta.SerializeAsString());
+        enviar(atendimento_, resposta.SerializeAsString());
         mensageiro_.exibir("ENVIA", resposta, envelope.remetente());
         mensagensRecebidas_++;
         if (mensagensRecebidas_ % BATIMENTO_A_CADA == 0) {
@@ -477,10 +477,10 @@ private:
     Messenger mensageiro_;
     Store armazenamento_;
     zmq::context_t contexto_;
-    zmq::socket_t rep_;
+    zmq::socket_t atendimento_;
     zmq::socket_t par_;
-    zmq::socket_t pub_;
-    zmq::socket_t sub_;
+    zmq::socket_t publicador_;
+    zmq::socket_t assinante_;
     int rank_ = 0;
     long long mensagensRecebidas_ = 0;
     std::string coordenador_;

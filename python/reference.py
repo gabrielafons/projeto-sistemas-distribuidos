@@ -17,8 +17,8 @@ def main():
     ativos = {}
 
     contexto = zmq.Context()
-    rep = contexto.socket(zmq.REP)
-    rep.bind(f"tcp://*:{PORTA}")
+    atendimento = contexto.socket(zmq.REP)
+    atendimento.bind(f"tcp://*:{PORTA}")
     print(f"[reference] escutando em :{PORTA} (timeout de heartbeat: {TIMEOUT}s)", flush=True)
 
     def remover_inativos():
@@ -52,17 +52,17 @@ def main():
         return erro(envelope.tipo, "tipo de mensagem desconhecido")
 
     while True:
-        dados = rep.recv()
+        dados = atendimento.recv()
         remover_inativos()
         try:
             envelope = mensageiro.ler(dados)
         except Exception:
             resposta = erro(pb.DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)")
-            rep.send(codificar(resposta))
+            atendimento.send(codificar(resposta))
             continue
         mensageiro.exibir("RECEBE", envelope, envelope.remetente)
         resposta = tratar(envelope)
-        rep.send(codificar(resposta))
+        atendimento.send(codificar(resposta))
         mensageiro.exibir("ENVIA", resposta, envelope.remetente)
 
 

@@ -44,30 +44,30 @@ class Server:
         self.proxima_sync = time.time() + ANTI_ENTROPIA
 
         self.contexto = zmq.Context()
-        self.rep = self.contexto.socket(zmq.REP)
-        self.rep.connect(f"tcp://{BROKER_HOST}:5556")
+        self.atendimento = self.contexto.socket(zmq.REP)
+        self.atendimento.connect(f"tcp://{BROKER_HOST}:5556")
         self.par = self.contexto.socket(zmq.REP)
         self.par.bind(f"tcp://*:{PEER_PORT}")
-        self.pub = self.contexto.socket(zmq.PUB)
-        self.pub.connect(f"tcp://{PROXY_HOST}:5557")
-        self.sub = self.contexto.socket(zmq.SUB)
-        self.sub.connect(f"tcp://{PROXY_HOST}:5558")
-        self.sub.setsockopt(zmq.SUBSCRIBE, TOPICO_SERVIDORES.encode())
-        self.sub.setsockopt(zmq.SUBSCRIBE, TOPICO_REPLICA.encode())
+        self.publicador = self.contexto.socket(zmq.PUB)
+        self.publicador.connect(f"tcp://{PROXY_HOST}:5557")
+        self.assinante = self.contexto.socket(zmq.SUB)
+        self.assinante.connect(f"tcp://{PROXY_HOST}:5558")
+        self.assinante.setsockopt(zmq.SUBSCRIBE, TOPICO_SERVIDORES.encode())
+        self.assinante.setsockopt(zmq.SUBSCRIBE, TOPICO_REPLICA.encode())
 
         self.sondador = zmq.Poller()
-        for socket in (self.rep, self.par, self.sub):
+        for socket in (self.atendimento, self.par, self.assinante):
             self.sondador.register(socket, zmq.POLLIN)
 
     def pedir(self, endereco, envelope, timeout=TIMEOUT_REQ):
-        req = self.contexto.socket(zmq.REQ)
-        req.setsockopt(zmq.LINGER, 0)
-        req.connect(endereco)
+        requisicao = self.contexto.socket(zmq.REQ)
+        requisicao.setsockopt(zmq.LINGER, 0)
+        requisicao.connect(endereco)
         espera = zmq.Poller()
-        espera.register(req, zmq.POLLIN)
+        espera.register(requisicao, zmq.POLLIN)
         espera.register(self.par, zmq.POLLIN)
         try:
-            req.send(codificar(envelope))
+            requisicao.send(codificar(envelope))
             self.mensageiro.exibir("ENVIA", envelope, endereco.split("//")[1])
             fim = time.time() + timeout
             while True:
@@ -78,12 +78,12 @@ class Server:
                 eventos = dict(espera.poll(int(resto * 1000) + 1))
                 if self.par in eventos:
                     self.atender_par()
-                if req in eventos:
-                    resposta = self.mensageiro.ler(req.recv())
+                if requisicao in eventos:
+                    resposta = self.mensageiro.ler(requisicao.recv())
                     self.mensageiro.exibir("RECEBE", resposta, resposta.remetente)
                     return resposta
         finally:
-            req.close()
+            requisicao.close()
 
     def referencia(self, envelope):
         return self.pedir(f"tcp://{REF_HOST}:5559", envelope)
@@ -131,7 +131,7 @@ class Server:
     def virar_coordenador(self):
         self.coordenador = NOME
         anuncio = self.mensageiro.montar(pb.COORDENADOR, coordenador=NOME, rank=self.rank)
-        self.pub.send_multipart([TOPICO_SERVIDORES.encode(), codificar(anuncio)])
+        self.publicador.send_multipart([TOPICO_SERVIDORES.encode(), codificar(anuncio)])
         self.mensageiro.exibir("ENVIA", anuncio, f"#{TOPICO_SERVIDORES}")
         print(f"[{NOME}] eleito coordenador", flush=True)
 
@@ -180,7 +180,7 @@ class Server:
         self.mensageiro.exibir("ENVIA", resposta, envelope.remetente)
 
     def receber_do_sub(self):
-        topico, dados = self.sub.recv_multipart()
+        topico, dados = self.assinante.recv_multipart()
         topico = topico.decode()
         if topico not in (TOPICO_SERVIDORES, TOPICO_REPLICA):
             return
@@ -202,7 +202,7 @@ class Server:
 
     def replicar(self, entradas):
         mensagem = self.mensageiro.montar(pb.REPLICAR, entradas=[entrada_para_proto(e) for e in entradas])
-        self.pub.send_multipart([TOPICO_REPLICA.encode(), codificar(mensagem)])
+        self.publicador.send_multipart([TOPICO_REPLICA.encode(), codificar(mensagem)])
         self.mensageiro.exibir("ENVIA", mensagem, f"#{TOPICO_REPLICA}")
 
     def aplicar_entradas(self, entradas, origem):
@@ -261,7 +261,7 @@ class Server:
             self.gravar(self.armazenamento.nova_entrada("message", ts=publicacao.instante, clock=publicacao.relogio,
                                                         user=envelope.remetente, channel=envelope.canal,
                                                         text=envelope.texto))
-            self.pub.send_multipart([envelope.canal.encode(), codificar(publicacao)])
+            self.publicador.send_multipart([envelope.canal.encode(), codificar(publicacao)])
             self.mensageiro.exibir("ENVIA", publicacao, f"#{envelope.canal}")
             return self.mensageiro.montar(envelope.tipo, status=pb.OK, canal=envelope.canal)
 
@@ -271,17 +271,17 @@ class Server:
         return self.erro(envelope.tipo, "tipo de mensagem desconhecido")
 
     def atender_cliente(self):
-        dados = self.rep.recv()
+        dados = self.atendimento.recv()
         try:
             envelope = self.mensageiro.ler(dados)
         except Exception:
             resposta = self.erro(pb.DESCONHECIDO, "mensagem inválida (não é um Envelope Protobuf)")
-            self.rep.send(codificar(resposta))
+            self.atendimento.send(codificar(resposta))
             self.mensageiro.exibir("ENVIA", resposta)
             return
         self.mensageiro.exibir("RECEBE", envelope, envelope.remetente)
         resposta = self.tratar(envelope)
-        self.rep.send(codificar(resposta))
+        self.atendimento.send(codificar(resposta))
         self.mensageiro.exibir("ENVIA", resposta, envelope.remetente)
         self.mensagens_recebidas += 1
         if self.mensagens_recebidas % HEARTBEAT_A_CADA == 0:
@@ -289,17 +289,17 @@ class Server:
         if self.mensagens_recebidas % SINCRONIZA_A_CADA == 0:
             self.sincronizar_relogio()
 
-    def run(self):
+    def executar(self):
         print(f"[{NOME}] iniciado. {len(self.armazenamento.canais)} canais carregados de {self.armazenamento.caminho}", flush=True)
         self.registrar()
         self.anti_entropia(todos=True)
         while True:
             eventos = dict(self.sondador.poll(1000))
-            if self.rep in eventos:
+            if self.atendimento in eventos:
                 self.atender_cliente()
             if self.par in eventos:
                 self.atender_par()
-            if self.sub in eventos:
+            if self.assinante in eventos:
                 self.receber_do_sub()
             if time.time() >= self.proxima_sync:
                 self.anti_entropia()
@@ -308,4 +308,4 @@ class Server:
 
 
 if __name__ == "__main__":
-    Server().run()
+    Server().executar()

@@ -34,10 +34,10 @@ namespace Bbs
         private readonly PhysicalClock relogio;
         private readonly Messenger mensageiro;
         private readonly Store armazenamento;
-        private readonly ResponseSocket rep = new ResponseSocket();
+        private readonly ResponseSocket atendimento = new ResponseSocket();
         private readonly ResponseSocket par = new ResponseSocket();
-        private readonly PublisherSocket pub = new PublisherSocket();
-        private readonly SubscriberSocket sub = new SubscriberSocket();
+        private readonly PublisherSocket publicador = new PublisherSocket();
+        private readonly SubscriberSocket assinante = new SubscriberSocket();
         private readonly Random sorteio = new Random();
 
         private int rank = 0;
@@ -54,12 +54,12 @@ namespace Bbs
             mensageiro = new Messenger(Nome, relogio);
             armazenamento = new Store(DiretorioDados, Nome);
 
-            rep.Connect("tcp://" + HostBroker + ":5556");
+            atendimento.Connect("tcp://" + HostBroker + ":5556");
             par.Bind("tcp://*:" + PortaPar);
-            pub.Connect("tcp://" + HostProxy + ":5557");
-            sub.Connect("tcp://" + HostProxy + ":5558");
-            sub.Subscribe(TopicoServidores);
-            sub.Subscribe(TopicoReplica);
+            publicador.Connect("tcp://" + HostProxy + ":5557");
+            assinante.Connect("tcp://" + HostProxy + ":5558");
+            assinante.Subscribe(TopicoServidores);
+            assinante.Subscribe(TopicoReplica);
         }
 
         private static bool Reservado(string nome)
@@ -75,7 +75,7 @@ namespace Bbs
             while (true)
             {
                 bool ativo = false;
-                if (rep.TryReceiveFrameBytes(out byte[] pedidoCliente))
+                if (atendimento.TryReceiveFrameBytes(out byte[] pedidoCliente))
                 {
                     AtenderCliente(pedidoCliente);
                     ativo = true;
@@ -85,7 +85,7 @@ namespace Bbs
                     AtenderPar(pedidoPar);
                     ativo = true;
                 }
-                if (sub.TryReceiveFrameBytes(out byte[] topico, out bool mais))
+                if (assinante.TryReceiveFrameBytes(out byte[] topico, out bool mais))
                 {
                     ReceberDoSub(topico, mais);
                     ativo = true;
@@ -107,18 +107,18 @@ namespace Bbs
 
         private void Publicar(string topico, Envelope envelope)
         {
-            pub.SendMoreFrame(topico).SendFrame(envelope.ToByteArray());
+            publicador.SendMoreFrame(topico).SendFrame(envelope.ToByteArray());
         }
 
         private Envelope Pedir(string endereco, Envelope envelope, int tempoLimiteMs)
         {
-            RequestSocket req = null;
+            RequestSocket requisicao = null;
             try
             {
-                req = new RequestSocket();
-                req.Options.Linger = TimeSpan.Zero;
-                req.Connect(endereco);
-                if (!req.TrySendFrame(TimeSpan.FromMilliseconds(tempoLimiteMs), envelope.ToByteArray()))
+                requisicao = new RequestSocket();
+                requisicao.Options.Linger = TimeSpan.Zero;
+                requisicao.Connect(endereco);
+                if (!requisicao.TrySendFrame(TimeSpan.FromMilliseconds(tempoLimiteMs), envelope.ToByteArray()))
                 {
                     SemResposta(endereco, tempoLimiteMs);
                     return null;
@@ -132,7 +132,7 @@ namespace Bbs
                     {
                         AtenderPar(pedidoPar);
                     }
-                    if (req.TryReceiveFrameBytes(out byte[] resposta))
+                    if (requisicao.TryReceiveFrameBytes(out byte[] resposta))
                     {
                         if (!mensageiro.TentarLer(resposta, out Envelope recebida))
                         {
@@ -156,7 +156,7 @@ namespace Bbs
             }
             finally
             {
-                req?.Dispose();
+                requisicao?.Dispose();
             }
         }
 
@@ -340,7 +340,7 @@ namespace Bbs
             byte[] dados = null;
             while (mais)
             {
-                if (!sub.TryReceiveFrameBytes(TimeSpan.FromSeconds(1), out dados, out mais))
+                if (!assinante.TryReceiveFrameBytes(TimeSpan.FromSeconds(1), out dados, out mais))
                 {
                     return;
                 }
@@ -512,13 +512,13 @@ namespace Bbs
             if (!mensageiro.TentarLer(dados, out Envelope envelope))
             {
                 Envelope invalida = Erro(Type.Desconhecido, "mensagem inválida (não é um Envelope Protobuf)");
-                rep.SendFrame(invalida.ToByteArray());
+                atendimento.SendFrame(invalida.ToByteArray());
                 mensageiro.Exibir("ENVIA", invalida, "");
                 return;
             }
             mensageiro.Exibir("RECEBE", envelope, envelope.Remetente);
             Envelope resposta = Tratar(envelope);
-            rep.SendFrame(resposta.ToByteArray());
+            atendimento.SendFrame(resposta.ToByteArray());
             mensageiro.Exibir("ENVIA", resposta, envelope.Remetente);
             mensagensRecebidas++;
             if (mensagensRecebidas % BatimentoACadaN == 0)

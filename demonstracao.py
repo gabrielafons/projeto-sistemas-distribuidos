@@ -10,11 +10,11 @@ from common import hora
 
 class ClienteManual(Bot):
     def requisitar(self, envelope):
-        self.req.send(envelope.SerializeToString())
-        if not self.req.poll(10000):
+        self.requisicao.send(envelope.SerializeToString())
+        if not self.requisicao.poll(10000):
             self._conectar()
             raise TimeoutError("Sem resposta em 10 s. Confira os servidores; a operacao pode ter sido aceita.")
-        return self.mensageiro.ler(self.req.recv())
+        return self.mensageiro.ler(self.requisicao.recv())
 
 
 def conferir(resposta):
@@ -46,15 +46,15 @@ def main():
 
         if args.modo == "receber":
             if args.todos:
-                bot.sub.setsockopt(zmq.SUBSCRIBE, b"")
+                bot.assinante.setsockopt(zmq.SUBSCRIBE, b"")
             else:
                 bot.inscrever(args.canal)
             time.sleep(1)
             print("PRONTO PARA RECEBER em todos os canais. Ctrl+C encerra." if args.todos else f"PRONTO PARA RECEBER no canal #{args.canal}. Ctrl+C encerra.", flush=True)
             while True:
-                if not bot.sub.poll(500):
+                if not bot.assinante.poll(500):
                     continue
-                quadros = bot.sub.recv_multipart()
+                quadros = bot.assinante.recv_multipart()
                 if len(quadros) != 2:
                     continue
                 canal = quadros[0].decode()
@@ -85,8 +85,8 @@ def main():
         print(f"ERRO: {exc}", flush=True)
         raise SystemExit(1)
     finally:
-        bot.req.close(linger=0)
-        bot.sub.close(linger=0)
+        bot.requisicao.close(linger=0)
+        bot.assinante.close(linger=0)
         bot.contexto.term()
 
 

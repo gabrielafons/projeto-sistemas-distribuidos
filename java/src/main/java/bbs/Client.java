@@ -29,9 +29,9 @@ public final class Client {
     private final Random sorteio = new Random();
     private final ZContext contexto = new ZContext();
     private final Messenger mensageiro;
-    private final ZMQ.Socket sub;
+    private final ZMQ.Socket assinante;
     private final Set<String> inscritos = new LinkedHashSet<>();
-    private ZMQ.Socket req;
+    private ZMQ.Socket requisicao;
     private String nome;
 
     Client() {
@@ -39,8 +39,8 @@ public final class Client {
         nome = bot != null && !bot.isEmpty() ? bot : nomeAleatorio();
         mensageiro = new Messenger(nome, new PhysicalClock(0));
         conectar();
-        sub = contexto.createSocket(SocketType.SUB);
-        sub.connect("tcp://" + PROXY_HOST + ":5558");
+        assinante = contexto.createSocket(SocketType.SUB);
+        assinante.connect("tcp://" + PROXY_HOST + ":5558");
     }
 
     private String nomeAleatorio() {
@@ -48,20 +48,20 @@ public final class Client {
     }
 
     private void conectar() {
-        if (req != null) {
-            req.setLinger(0);
-            contexto.destroySocket(req);
+        if (requisicao != null) {
+            requisicao.setLinger(0);
+            contexto.destroySocket(requisicao);
         }
-        req = contexto.createSocket(SocketType.REQ);
-        req.setReceiveTimeOut(TIMEOUT_MS);
-        req.connect("tcp://" + BROKER_HOST + ":5555");
+        requisicao = contexto.createSocket(SocketType.REQ);
+        requisicao.setReceiveTimeOut(TIMEOUT_MS);
+        requisicao.connect("tcp://" + BROKER_HOST + ":5555");
     }
 
     private Envelope requisitar(Envelope envelope) {
         while (true) {
-            req.send(envelope.toByteArray(), 0);
+            requisicao.send(envelope.toByteArray(), 0);
             mensageiro.exibir("ENVIA", envelope, "servidor", "");
-            byte[] dados = req.recv(0);
+            byte[] dados = requisicao.recv(0);
             if (dados != null) {
                 try {
                     Envelope resposta = mensageiro.ler(dados);
@@ -100,7 +100,7 @@ public final class Client {
     }
 
     private void inscrever(String canal) {
-        sub.subscribe(canal.getBytes(StandardCharsets.UTF_8));
+        assinante.subscribe(canal.getBytes(StandardCharsets.UTF_8));
         inscritos.add(canal);
         System.out.println("[" + nome + "] inscrito no canal #" + canal + " (" + inscritos.size() + " inscrições)");
     }
@@ -112,8 +112,8 @@ public final class Client {
 
     private void receber(byte[] topicoBytes) {
         byte[] dados = null;
-        while (sub.hasReceiveMore()) {
-            dados = sub.recv(0);
+        while (assinante.hasReceiveMore()) {
+            dados = assinante.recv(0);
         }
         if (dados == null) {
             return;
@@ -137,7 +137,7 @@ public final class Client {
             if (resto <= 0) {
                 return;
             }
-            byte[] topico = sub.recv(ZMQ.DONTWAIT);
+            byte[] topico = assinante.recv(ZMQ.DONTWAIT);
             if (topico != null) {
                 receber(topico);
             } else {

@@ -23,9 +23,9 @@ namespace Bbs
 
         private readonly Random sorteio = new Random();
         private readonly Messenger mensageiro;
-        private readonly SubscriberSocket sub = new SubscriberSocket();
+        private readonly SubscriberSocket assinante = new SubscriberSocket();
         private readonly HashSet<string> inscritos = new HashSet<string>();
-        private RequestSocket req;
+        private RequestSocket requisicao;
         private string nome;
 
         public Client()
@@ -33,7 +33,7 @@ namespace Bbs
             string bot = Util.Variavel("BOT_NAME", "");
             nome = bot.Length > 0 ? bot : NomeAleatorio();
             mensageiro = new Messenger(nome, new PhysicalClock(0));
-            sub.Connect("tcp://" + HostProxy + ":5558");
+            assinante.Connect("tcp://" + HostProxy + ":5558");
             Conectar();
         }
 
@@ -44,24 +44,24 @@ namespace Bbs
 
         private void Conectar()
         {
-            if (req != null)
+            if (requisicao != null)
             {
-                req.Options.Linger = TimeSpan.Zero;
-                req.Dispose();
+                requisicao.Options.Linger = TimeSpan.Zero;
+                requisicao.Dispose();
             }
-            req = new RequestSocket();
-            req.Options.Linger = TimeSpan.Zero;
-            req.Connect("tcp://" + HostBroker + ":5555");
+            requisicao = new RequestSocket();
+            requisicao.Options.Linger = TimeSpan.Zero;
+            requisicao.Connect("tcp://" + HostBroker + ":5555");
         }
 
         private Envelope Requisitar(Envelope envelope)
         {
             while (true)
             {
-                if (req.TrySendFrame(TimeSpan.FromMilliseconds(TempoLimiteMs), envelope.ToByteArray()))
+                if (requisicao.TrySendFrame(TimeSpan.FromMilliseconds(TempoLimiteMs), envelope.ToByteArray()))
                 {
                     mensageiro.Exibir("ENVIA", envelope, "servidor");
-                    if (req.TryReceiveFrameBytes(TimeSpan.FromMilliseconds(TempoLimiteMs), out byte[] dados)
+                    if (requisicao.TryReceiveFrameBytes(TimeSpan.FromMilliseconds(TempoLimiteMs), out byte[] dados)
                         && mensageiro.TentarLer(dados, out Envelope resposta))
                     {
                         mensageiro.Exibir("RECEBE", resposta, resposta.Remetente);
@@ -104,7 +104,7 @@ namespace Bbs
 
         private void Inscrever(string canal)
         {
-            sub.Subscribe(canal);
+            assinante.Subscribe(canal);
             inscritos.Add(canal);
             Console.WriteLine($"[{nome}] inscrito no canal #{canal} ({inscritos.Count} inscrições)");
         }
@@ -122,7 +122,7 @@ namespace Bbs
             byte[] dados = null;
             while (mais)
             {
-                if (!sub.TryReceiveFrameBytes(TimeSpan.FromSeconds(1), out dados, out mais))
+                if (!assinante.TryReceiveFrameBytes(TimeSpan.FromSeconds(1), out dados, out mais))
                 {
                     return;
                 }
@@ -148,7 +148,7 @@ namespace Bbs
                 {
                     return;
                 }
-                if (sub.TryReceiveFrameBytes(out byte[] topico, out bool mais))
+                if (assinante.TryReceiveFrameBytes(out byte[] topico, out bool mais))
                 {
                     Receber(topico, mais);
                 }

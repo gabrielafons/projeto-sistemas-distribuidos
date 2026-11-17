@@ -21,24 +21,24 @@ class Bot:
         self.nome = os.environ.get("BOT_NAME") or f"py-bot-{random.randint(1000, 9999)}"
         self.mensageiro = Messenger(self.nome)
         self.contexto = zmq.Context()
-        self.req = None
+        self.requisicao = None
         self._conectar()
-        self.sub = self.contexto.socket(zmq.SUB)
-        self.sub.connect(f"tcp://{PROXY_HOST}:5558")
+        self.assinante = self.contexto.socket(zmq.SUB)
+        self.assinante.connect(f"tcp://{PROXY_HOST}:5558")
         self.inscritos = set()
 
     def _conectar(self):
-        if self.req is not None:
-            self.req.close(linger=0)
-        self.req = self.contexto.socket(zmq.REQ)
-        self.req.connect(f"tcp://{BROKER_HOST}:5555")
+        if self.requisicao is not None:
+            self.requisicao.close(linger=0)
+        self.requisicao = self.contexto.socket(zmq.REQ)
+        self.requisicao.connect(f"tcp://{BROKER_HOST}:5555")
 
     def requisitar(self, envelope):
         while True:
-            self.req.send(codificar(envelope))
+            self.requisicao.send(codificar(envelope))
             self.mensageiro.exibir("ENVIA", envelope, "servidor")
-            if self.req.poll(TIMEOUT_MS):
-                resposta = self.mensageiro.ler(self.req.recv())
+            if self.requisicao.poll(TIMEOUT_MS):
+                resposta = self.mensageiro.ler(self.requisicao.recv())
                 self.mensageiro.exibir("RECEBE", resposta, resposta.remetente)
                 return resposta
             print(f"[{self.nome}] sem resposta em {TIMEOUT_MS} ms, tentando de novo", flush=True)
@@ -62,7 +62,7 @@ class Bot:
         return resposta.status == pb.OK
 
     def inscrever(self, canal):
-        self.sub.setsockopt(zmq.SUBSCRIBE, canal.encode())
+        self.assinante.setsockopt(zmq.SUBSCRIBE, canal.encode())
         self.inscritos.add(canal)
         print(f"[{self.nome}] inscrito no canal #{canal} ({len(self.inscritos)} inscrições)", flush=True)
 
@@ -71,7 +71,7 @@ class Bot:
         return resposta.status == pb.OK
 
     def receber(self):
-        topico, dados = self.sub.recv_multipart()
+        topico, dados = self.assinante.recv_multipart()
         canal = topico.decode()
         if canal not in self.inscritos:
             return
@@ -84,7 +84,7 @@ class Bot:
             resto = fim - time.time()
             if resto <= 0:
                 return
-            if self.sub.poll(int(resto * 1000) + 1):
+            if self.assinante.poll(int(resto * 1000) + 1):
                 self.receber()
 
 
