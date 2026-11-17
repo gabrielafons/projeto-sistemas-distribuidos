@@ -387,10 +387,10 @@ namespace Bbs
             }
         }
 
-        private int AplicarEntradas(IEnumerable<EntradaLog> entradas, string origem)
+        private int AplicarEntradas(IEnumerable<LogEntry> entradas, string origem)
         {
             int novas = 0;
-            foreach (EntradaLog le in entradas)
+            foreach (LogEntry le in entradas)
             {
                 if (armazenamento.Adicionar(Entrada.DeProto(le)))
                 {

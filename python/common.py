@@ -16,7 +16,7 @@ def decodificar(dados):
 
 
 def entrada_para_proto(e):
-    return pb.EntradaLog(id=e["id"], origem=e["origin"], tipo=e["kind"], instante=e["ts"],
+    return pb.LogEntry(id=e["id"], origem=e["origin"], tipo=e["kind"], instante=e["ts"],
                          relogio=e.get("clock", 0), usuario=e["user"], canal=e["channel"], texto=e["text"])
 
 

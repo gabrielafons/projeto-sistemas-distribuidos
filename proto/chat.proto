@@ -33,7 +33,7 @@ message InfoServidor {
   string endereco = 3;
 }
 
-message EntradaLog {
+message LogEntry {
   string id = 1;
   string origem = 2;
   string tipo = 3;
@@ -60,5 +60,5 @@ message Envelope {
   double hora = 13;
   string coordenador = 14;
   string endereco = 15;
-  repeated EntradaLog entradas = 16;
+  repeated LogEntry entradas = 16;
 }

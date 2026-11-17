@@ -21,9 +21,9 @@ long long agoraMs() {
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
-class Robo {
+class Bot {
 public:
-    Robo()
+    Bot()
         : gerador_(std::random_device{}()),
           relogio_(0.0),
           mensageiro_(inicial(), &relogio_),
@@ -194,7 +194,7 @@ private:
 }  // namespace
 
 int main() {
-    Robo bot;
+    Bot bot;
     bot.executar();
     return 0;
 }

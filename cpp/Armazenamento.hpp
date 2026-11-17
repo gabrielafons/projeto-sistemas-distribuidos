@@ -25,8 +25,8 @@ struct Entrada {
     std::string canal;
     std::string texto;
 
-    EntradaLog paraProto() const {
-        EntradaLog le;
+    LogEntry paraProto() const {
+        LogEntry le;
         le.set_id(id);
         le.set_origem(origem);
         le.set_tipo(tipo);
@@ -38,7 +38,7 @@ struct Entrada {
         return le;
     }
 
-    static Entrada deProto(const EntradaLog& le) {
+    static Entrada deProto(const LogEntry& le) {
         Entrada e;
         e.id = le.id();
         e.origem = le.origem();

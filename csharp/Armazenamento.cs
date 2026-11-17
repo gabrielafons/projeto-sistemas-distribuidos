@@ -20,9 +20,9 @@ namespace Bbs
         [JsonPropertyName("channel")] public string Canal { get; set; } = "";
         [JsonPropertyName("text")] public string Texto { get; set; } = "";
 
-        public EntradaLog ParaProto()
+        public LogEntry ParaProto()
         {
-            return new EntradaLog
+            return new LogEntry
             {
                 Id = Id,
                 Origem = Origem,
@@ -35,7 +35,7 @@ namespace Bbs
             };
         }
 
-        public static Entrada DeProto(EntradaLog le)
+        public static Entrada DeProto(LogEntry le)
         {
             return new Entrada
             {

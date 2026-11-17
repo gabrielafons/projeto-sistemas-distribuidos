@@ -1,6 +1,6 @@
 package bbs;
 
-import bbs.ChatProto.EntradaLog;
+import bbs.ChatProto.LogEntry;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
@@ -37,8 +37,8 @@ final class Armazenamento {
         @SerializedName("text")
         String texto = "";
 
-        EntradaLog paraProto() {
-            return EntradaLog.newBuilder()
+        LogEntry paraProto() {
+            return LogEntry.newBuilder()
                     .setId(id)
                     .setOrigem(origem)
                     .setTipo(tipo)
@@ -50,7 +50,7 @@ final class Armazenamento {
                     .build();
         }
 
-        static Entrada deProto(EntradaLog le) {
+        static Entrada deProto(LogEntry le) {
             Entrada e = new Entrada();
             e.id = le.getId();
             e.origem = le.getOrigem();

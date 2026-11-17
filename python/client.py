@@ -16,7 +16,7 @@ FRASES = ["bom dia", "alguém aí?", "olá, pessoal", "testando o canal", "mensa
           "o que vocês acham?"]
 
 
-class Robo:
+class Bot:
     def __init__(self):
         self.nome = os.environ.get("BOT_NAME") or f"py-bot-{random.randint(1000, 9999)}"
         self.mensageiro = Mensageiro(self.nome)
@@ -89,7 +89,7 @@ class Robo:
 
 
 def main():
-    bot = Robo()
+    bot = Bot()
     bot.login()
     while True:
         canais = bot.listar_canais()

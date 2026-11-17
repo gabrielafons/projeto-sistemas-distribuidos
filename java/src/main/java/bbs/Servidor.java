@@ -1,7 +1,7 @@
 package bbs;
 
 import bbs.ChatProto.Envelope;
-import bbs.ChatProto.EntradaLog;
+import bbs.ChatProto.LogEntry;
 import bbs.ChatProto.InfoServidor;
 import bbs.ChatProto.Status;
 import bbs.ChatProto.Tipo;
@@ -320,9 +320,9 @@ public final class Servidor {
         mensageiro.exibir("ENVIA", mensagem, "#" + TOPICO_REPLICA, "");
     }
 
-    private int aplicarEntradas(List<EntradaLog> entradas, String origem) {
+    private int aplicarEntradas(List<LogEntry> entradas, String origem) {
         int novas = 0;
-        for (EntradaLog le : entradas) {
+        for (LogEntry le : entradas) {
             if (armazenamento.adicionar(Entrada.deProto(le))) {
                 novas++;
             }
