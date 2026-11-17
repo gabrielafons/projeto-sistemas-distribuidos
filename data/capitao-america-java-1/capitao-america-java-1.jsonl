@@ -1,0 +1,49 @@
+{"id":"9133d37ebb670ea786c04ee69c2d3723","origin":"feiticeira-escarlate-cpp-2","kind":"login","ts":1.7948681209523463E9,"clock":4,"user":"visao-cpp-1","channel":"","text":""}
+{"id":"b83af926ab4e20cb147856905548854d","origin":"feiticeira-escarlate-cpp-2","kind":"login","ts":1.7948681210682292E9,"clock":9,"user":"feiticeira-escarlate-cpp-2","channel":"","text":""}
+{"id":"35ddbbe02bcd22d4831b4e55cd33e88f","origin":"feiticeira-escarlate-cpp-2","kind":"login","ts":1.7948681210853755E9,"clock":11,"user":"maquina-de-combate-python-2","channel":"","text":""}
+{"id":"db681a0b33e488993512d13b9e81ddb5","origin":"feiticeira-escarlate-cpp-2","kind":"channel","ts":1.794868121112318E9,"clock":15,"user":"visao-cpp-1","channel":"canal-4854","text":""}
+{"id":"092f98b0da001df4f594c3b09bd3eb48","origin":"feiticeira-escarlate-cpp-2","kind":"channel","ts":1.7948681211297178E9,"clock":17,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":""}
+{"id":"9a14f61508dffe4319cd3e28f0a9d246","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681211463134E9,"clock":27,"user":"visao-cpp-1","channel":"canal-8277","text":"o que vocês acham?"}
+{"id":"8c03bb2448e09937a40a2fd400178011","origin":"feiticeira-escarlate-cpp-2","kind":"channel","ts":1.7948681211610744E9,"clock":29,"user":"maquina-de-combate-python-2","channel":"canal-3444","text":""}
+{"id":"cd4955fb8ae4d38b023fdc1b4c657207","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681212035136E9,"clock":32,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"mais uma mensagem"}
+{"id":"502106fe4a2e09e77d76341b89251139","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681212906573E9,"clock":37,"user":"maquina-de-combate-python-2","channel":"canal-8277","text":"mais uma mensagem"}
+{"id":"a8c2e9f1a5c5e2241a63db4a87549c98","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681222167304E9,"clock":40,"user":"visao-cpp-1","channel":"canal-8277","text":"alguém aí?"}
+{"id":"704c32ed0bcfec5aea295c35b00b2641","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.794868122328272E9,"clock":43,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"alguém aí?"}
+{"id":"c6123c7e6107a3d0d0f5745a2c4ee26c","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681223653855E9,"clock":46,"user":"maquina-de-combate-python-2","channel":"canal-8277","text":"olá, pessoal"}
+{"id":"76a9ff9664fc0f6d0dd51bd68318513b","origin":"feiticeira-escarlate-cpp-2","kind":"login","ts":1.7948681232722578E9,"clock":50,"user":"viuva-negra-csharp-1","channel":"","text":""}
+{"id":"238b8acfef47490588c8b4c4e909c919","origin":"maquina-de-combate-python-2","kind":"message","ts":1.7948681255415056E9,"clock":54,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"testando o canal"}
+{"id":"e4197bb9363bbed8a6ff6afe82c0349a","origin":"visao-cpp-1","kind":"message","ts":1.794868129774167E9,"clock":56,"user":"visao-cpp-1","channel":"canal-8277","text":"mais uma mensagem"}
+{"id":"edca1531c4fc4c8b2e72abe589b17a10","origin":"visao-cpp-1","kind":"channel","ts":1.7948681298230739E9,"clock":58,"user":"viuva-negra-csharp-1","channel":"canal-2241","text":""}
+{"id":"b43e2521136cead4c5fd295aa4fd9d66","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681247288525E9,"clock":62,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"tudo bem por aí?"}
+{"id":"53fce827f342303bf01a10d9595d91ad","origin":"visao-cpp-1","kind":"login","ts":1.794868130413068E9,"clock":63,"user":"gaviao-arqueiro-csharp-2","channel":"","text":""}
+{"id":"7f2ff3bf431c418a8236f8e9a308ee70","origin":"maquina-de-combate-python-2","kind":"message","ts":1.7948681273073175E9,"clock":65,"user":"visao-cpp-1","channel":"canal-8277","text":"alguém aí?"}
+{"id":"4a2bdf01436c490db0d8dcf25759f62a","origin":"viuva-negra-csharp-1","kind":"message","ts":1.7948681326691291E9,"clock":70,"user":"maquina-de-combate-python-2","channel":"canal-8277","text":"sistemas distribuídos são legais"}
+{"id":"03fe119883643c1d58329fb8421139e4","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681263808153E9,"clock":72,"user":"visao-cpp-1","channel":"canal-8277","text":"bom dia"}
+{"id":"584ec2aaca876060516c501e22072478","origin":"visao-cpp-1","kind":"channel","ts":1.7948681321956992E9,"clock":77,"user":"gaviao-arqueiro-csharp-2","channel":"canal-8977","text":""}
+{"id":"5147d27c10b5401b940521388d58bf65","origin":"viuva-negra-csharp-1","kind":"message","ts":1.7948681332174125E9,"clock":78,"user":"viuva-negra-csharp-1","channel":"canal-3444","text":"alguém aí?"}
+{"id":"6127bfc1c2614ce19edda4ff31db75d9","origin":"viuva-negra-csharp-1","kind":"login","ts":1.794868133276377E9,"clock":80,"user":"homem-de-ferro-python-1","channel":"","text":""}
+{"id":"f0ec011513b1453bafb32995e1feef4d","origin":"homem-de-ferro-python-1","kind":"channel","ts":1.7948681339090075E9,"clock":85,"user":"homem-de-ferro-python-1","channel":"canal-7257","text":""}
+{"id":"63b4f6fc19105b2c0fa49c6655727d65","origin":"visao-cpp-1","kind":"message","ts":1.7948681325171711E9,"clock":91,"user":"homem-de-ferro-python-1","channel":"canal-8977","text":"bom dia"}
+{"id":"6527760049d04d1789ab2ee370ab426e","origin":"maquina-de-combate-python-2","kind":"message","ts":1.7948681293462582E9,"clock":93,"user":"maquina-de-combate-python-2","channel":"canal-8277","text":"mensagem aleatória"}
+{"id":"41222725d69a47bc973ea80a3a68bd99","origin":"viuva-negra-csharp-1","kind":"message","ts":1.7948681339322512E9,"clock":95,"user":"visao-cpp-1","channel":"canal-8277","text":"testando o canal"}
+{"id":"44b3fa06866e4ec8ad2dc3cde35c2aa5","origin":"homem-de-ferro-python-1","kind":"message","ts":1.7948681348165863E9,"clock":97,"user":"viuva-negra-csharp-1","channel":"canal-3444","text":"o que vocês acham?"}
+{"id":"880d4a9c9b3373492cd931ea38ab4e66","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681284845738E9,"clock":99,"user":"visao-cpp-1","channel":"canal-8277","text":"ping"}
+{"id":"31d0a1b8d314d83896443b697bdf3a1a","origin":"visao-cpp-1","kind":"login","ts":1.7948681340920112E9,"clock":100,"user":"capitao-america-java-1","channel":"","text":""}
+{"id":"d32d954e83724b90aa8a77039257902a","origin":"gaviao-arqueiro-csharp-2","kind":"message","ts":1.794868131459464E9,"clock":106,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"o que vocês acham?"}
+{"id":"75034dfeca2941df819693d7ef4b6453","origin":"maquina-de-combate-python-2","kind":"message","ts":1.7948681308344471E9,"clock":108,"user":"viuva-negra-csharp-1","channel":"canal-3444","text":"sistemas distribuídos são legais"}
+{"id":"4b0ec279cec740389958e9d2216071d3","origin":"viuva-negra-csharp-1","kind":"message","ts":1.794868136058759E9,"clock":110,"user":"visao-cpp-1","channel":"canal-8277","text":"testando o canal"}
+{"id":"391a0a85b31e476fb93fcbc1416f9e7e","origin":"gaviao-arqueiro-csharp-2","kind":"message","ts":1.7948681328636725E9,"clock":117,"user":"gaviao-arqueiro-csharp-2","channel":"canal-4854","text":"olá, pessoal"}
+{"id":"c9a6086241484a7ab8727b2049572958","origin":"gaviao-arqueiro-csharp-2","kind":"login","ts":1.79486813290298E9,"clock":119,"user":"soldado-invernal-java-2","channel":"","text":""}
+{"id":"e9cc7ace84a845da99a107d8ef831c9f","origin":"homem-de-ferro-python-1","kind":"message","ts":1.794868136892643E9,"clock":112,"user":"viuva-negra-csharp-1","channel":"canal-3444","text":"bom dia"}
+{"id":"cf99be756c61449596746b46c6df67c0","origin":"gaviao-arqueiro-csharp-2","kind":"message","ts":1.7948681329190023E9,"clock":122,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"alguém aí?"}
+{"id":"cade770fae5b8d70a869a4b1e75f643a","origin":"feiticeira-escarlate-cpp-2","kind":"message","ts":1.7948681306091416E9,"clock":125,"user":"visao-cpp-1","channel":"canal-8277","text":"ping"}
+{"id":"a3e951d9440b4c9ea7ae3dbc96a407b7","origin":"maquina-de-combate-python-2","kind":"message","ts":1.7948681329689956E9,"clock":127,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"ping"}
+{"id":"bffd79784007fb1c8811ac2a49582989","origin":"visao-cpp-1","kind":"message","ts":1.794868136460416E9,"clock":128,"user":"gaviao-arqueiro-csharp-2","channel":"canal-4854","text":"ping"}
+{"id":"0e2e3bfe17c34699a1ecd1ecdfcfa84f","origin":"viuva-negra-csharp-1","kind":"message","ts":1.794868137519509E9,"clock":127,"user":"viuva-negra-csharp-1","channel":"canal-3444","text":"ping"}
+{"id":"6146402955fc4b1d9f18adebad912131","origin":"gaviao-arqueiro-csharp-2","kind":"message","ts":1.7948681347052424E9,"clock":130,"user":"visao-cpp-1","channel":"canal-8277","text":"mais uma mensagem"}
+{"id":"0e29e604b9b94ebcb435d045d404a8e0","origin":"capitao-america-java-1","kind":"message","ts":1.7948681325253525E9,"clock":139,"user":"maquina-de-combate-python-2","channel":"canal-8277","text":"mensagem aleatória"}
+{"id":"c88fdc5131124442b85ab615bd2fb05e","origin":"capitao-america-java-1","kind":"message","ts":1.7948681329367325E9,"clock":147,"user":"viuva-negra-csharp-1","channel":"canal-3444","text":"mensagem aleatória"}
+{"id":"90e55965565441799f1ed3de094011c8","origin":"homem-de-ferro-python-1","kind":"message","ts":1.794868139137533E9,"clock":142,"user":"feiticeira-escarlate-cpp-2","channel":"canal-8277","text":"mensagem aleatória"}
+{"id":"2a89e95413674e1196950f9fe01a7f8f","origin":"soldado-invernal-java-2","kind":"message","ts":1.794868137082048E9,"clock":146,"user":"homem-de-ferro-python-1","channel":"canal-8977","text":"sistemas distribuídos são legais"}
+{"id":"8344b8f79cbd430f81bc39696f283678","origin":"maquina-de-combate-python-2","kind":"message","ts":1.794868134790457E9,"clock":153,"user":"visao-cpp-1","channel":"canal-4854","text":"testando o canal"}
+{"id":"de8ef0af47274d1885458cf2322aeab6","origin":"viuva-negra-csharp-1","kind":"message","ts":1.7948681394814818E9,"clock":155,"user":"soldado-invernal-java-2","channel":"canal-4854","text":"mensagem aleatória"}
